@@ -1,7 +1,7 @@
 name: intellihome_application
-description: "A new Flutter project."
+description: "IntelliHome IoT Smart Home Control Application"
 publish_to: 'none'
-version: 0.1.0
+version: 1.1.0
 
 environment:
   sdk: ^3.9.2
@@ -13,7 +13,12 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_bluetooth_serial: ^0.4.0
+  permission_handler: ^11.3.0
   flutter_lints: ^5.0.0
+  home_widget: ^0.3.0
+  geolocator: ^10.1.0
+  http: ^1.1.0
 
 flutter:
   uses-material-design: true
