@@ -9,7 +9,6 @@ class OtpPage extends StatefulWidget {
   final String correctOtp;
   final bool isRegistration;
   
-  // Only for Registration
   final String? regName;
   final String? regUid;
   final String? regPass;
@@ -34,7 +33,6 @@ class _OtpPageState extends State<OtpPage> {
   final EmailService _emailService = EmailService();
   late String _currentOtp;
   
-  // Timer
   Timer? _timer;
   int _start = 120;
   bool _canResend = false;
@@ -80,17 +78,14 @@ class _OtpPageState extends State<OtpPage> {
   }
 
   void _verify() async {
-    // 1. Expiration Check
     if (!_auth.isOtpValid()) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("OTP Expired. Resend new code.")));
       return;
     }
 
-    // 2. Code Check
     if (_otpCtrl.text.trim() == _currentOtp) {
       
       if (widget.isRegistration) {
-        // --- REGISTRATION SUCCESS ---
         try {
           await _auth.registerUser(
             widget.regName!, 
@@ -105,7 +100,6 @@ class _OtpPageState extends State<OtpPage> {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
         }
       } else {
-        // --- RECOVERY SUCCESS ---
         try {
           Map<String, String> creds = await _auth.getCredentials(widget.email);
           if(!mounted) return;

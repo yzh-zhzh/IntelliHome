@@ -21,7 +21,6 @@ class _RecoveryPageState extends State<RecoveryPage> {
 
     setState(() => _isLoading = true);
 
-    // 1. Check if Email Exists in DB
     bool exists = await _auth.isEmailRegistered(_emailCtrl.text.trim());
     
     if (!exists) {
@@ -30,7 +29,6 @@ class _RecoveryPageState extends State<RecoveryPage> {
       return;
     }
 
-    // 2. Send OTP
     String otp = _auth.generateOtp();
     bool sent = await _emailService.sendOtpEmail(_emailCtrl.text.trim(), otp);
 

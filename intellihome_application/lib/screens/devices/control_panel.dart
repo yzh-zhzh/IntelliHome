@@ -97,7 +97,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
         isRaining = values[3].trim() == '1';
         dist = values[4].trim(); 
         
-        // Safety Logic
         if (isRaining) isWindowOpen = false;
       });
     }
@@ -131,7 +130,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. HEADER
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -171,7 +169,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
                 children: [
                   Expanded(child: _buildSensorTile("Temp", "$temp°C", Icons.thermostat, Colors.orange)),
                   const SizedBox(width: 15),
-                  // CHANGED: Humidity Widget
                   Expanded(child: _buildSensorTile("Humidity", "$humidity%", Icons.opacity, Colors.lightBlue)),
                   const SizedBox(width: 15),
                   Expanded(child: _buildSensorTile("Rain", rain, Icons.water_drop, Colors.blue, isAlert: isRaining)),

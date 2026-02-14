@@ -36,7 +36,6 @@ class _ProfilePageState extends State<ProfilePage> {
         _isLoading = false;
       });
     } catch (e) {
-      // Handle case where user might be null (e.g. during testing)
       setState(() => _isLoading = false);
     }
   }
@@ -77,8 +76,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
     return Scaffold(
       backgroundColor: Colors.grey.shade100,
-      // We don't need an AppBar here because HomeDashboard handles the main scaffolding,
-      // but if you want a title inside the tab:
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
@@ -96,7 +93,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   onTap: () {
                      setState(() {
                         _isEditing = !_isEditing;
-                        if (!_isEditing) _loadUserData(); // Reset if cancelled
+                        if (!_isEditing) _loadUserData();
                      });
                   },
                   child: Container(

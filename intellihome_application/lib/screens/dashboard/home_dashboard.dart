@@ -19,7 +19,7 @@ class HomeDashboard extends StatefulWidget {
 
 class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProviderStateMixin {
   final AuthService _auth = AuthService();
-  final SensorService _sensorService = SensorService(); // Instance of new service
+  final SensorService _sensorService = SensorService();
   
   String userName = "User";
 
@@ -27,29 +27,25 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   bool isConnected = false;
   String _buffer = '';
 
-  // Sensor Values
   double temp = 0.0;
   double humidity = 0.0;
   double dist = 0.0;
   bool isRaining = false;
   
-  // Security State
   bool isPersonHome = true;
   bool isAlarm = false;
   bool isAcOn = false;
 
-  // Analytics Data
   List<FlSpot> tempHistory = [];
   List<FlSpot> humHistory = [];
-  bool isLoadingCharts = false; // Loading state for charts
+  bool isLoadingCharts = false;
 
-  // Upload Timer
   Timer? _uploadTimer;
+  bool isSyncing = false;
+  List<Map<String, dynamic>> _syncBuffer = [];
+  Timer? _syncTimeoutTimer;
   
-  // Navigation
   int _selectedIndex = 0;
-  
-  // Animation for Alarm
   late AnimationController _alertController;
 
   @override
@@ -57,11 +53,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     super.initState();
     _loadUserName();
     _requestPermissions();
-    
-    // 1. Run Cleanup on Start (Delete old data)
     _runCleanup();
-
-    // 2. Start 5-Minute Upload Timer
     _startUploadTimer();
     
     _alertController = AnimationController(
@@ -77,7 +69,6 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   }
 
   void _startUploadTimer() {
-    // Upload every 5 minutes (300 seconds)
     _uploadTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
       if (isConnected && _auth.currentUserId != null) {
         _sensorService.uploadReading(_auth.currentUserId!, temp, humidity);
@@ -85,14 +76,43 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     });
   }
 
-  // Fetch Chart Data when tab changes to Analytics
+  void _triggerSync() {
+    if (!isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Bluetooth not connected!")));
+      return;
+    }
+
+    setState(() {
+      isSyncing = true;
+      _syncBuffer.clear();
+    });
+
+    _sendCommand('9'); 
+    
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Syncing data from device...")));
+  }
+
+  void _finalizeSync() async {
+    if (_syncBuffer.isNotEmpty && _auth.currentUserId != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Uploading ${_syncBuffer.length} synced records...")));
+      
+      await _sensorService.batchUploadReadings(_auth.currentUserId!, List.from(_syncBuffer));
+      
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sync Complete!")));
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("No data received to sync.")));
+    }
+
+    setState(() {
+      isSyncing = false;
+      _syncBuffer.clear();
+    });
+  }
+
   void _fetchChartData() async {
     if (_auth.currentUserId == null) return;
-    
     setState(() => isLoadingCharts = true);
-    
     Map<String, List<FlSpot>> data = await _sensorService.fetch24hData(_auth.currentUserId!);
-    
     if (mounted) {
       setState(() {
         tempHistory = data['temp']!;
@@ -102,13 +122,9 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     }
   }
 
-  // Switch tabs logic
   void _onItemTapped(int index) {
     setState(() => _selectedIndex = index);
-    // If switching to Analytics tab (Index 1), fetch fresh data from Firebase
-    if (index == 1) {
-      _fetchChartData();
-    }
+    if (index == 1) _fetchChartData();
   }
 
   Future<void> _loadUserName() async {
@@ -126,7 +142,8 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   void dispose() {
     _alertController.dispose();
     connection?.dispose();
-    _uploadTimer?.cancel(); // Cancel timer
+    _uploadTimer?.cancel();
+    _syncTimeoutTimer?.cancel();
     super.dispose();
   }
 
@@ -171,17 +188,26 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   void _parseData(String line) {
     List<String> values = line.split(',');
     if (values.length >= 8) {
+      double t = double.tryParse(values[0]) ?? 0.0;
+      double h = double.tryParse(values[1]) ?? 0.0;
+      
+      // Update UI state
       setState(() {
-        temp = double.tryParse(values[0]) ?? 0.0;
-        humidity = double.tryParse(values[1]) ?? 0.0;
+        temp = t;
+        humidity = h;
         isRaining = values[3].trim() == '1';
         dist = double.tryParse(values[4]) ?? 0.0;
         isPersonHome = values[5].trim() == '1';
         isAlarm = values[6].trim() == '1';
         isAcOn = values[7].trim() == '1';
-        // Note: We no longer add to local history here for charts, 
-        // we rely on Firebase fetch for the analytics tab.
       });
+
+      if (isSyncing) {
+        _syncBuffer.add({'temp': t, 'humidity': h});
+        
+        _syncTimeoutTimer?.cancel();
+        _syncTimeoutTimer = Timer(const Duration(seconds: 2), _finalizeSync);
+      }
     }
   }
 
@@ -199,6 +225,14 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
       appBar: AppBar(
         title: const Text("IntelliHome", style: TextStyle(fontWeight: FontWeight.bold)),
         actions: [
+          if (isConnected)
+            IconButton(
+              icon: isSyncing 
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.blue, strokeWidth: 2)) 
+                : const Icon(Icons.sync, color: Colors.blue),
+              tooltip: "Sync stored data",
+              onPressed: isSyncing ? null : _triggerSync,
+            ),
           IconButton(
             icon: Icon(isConnected ? Icons.bluetooth_connected : Icons.bluetooth_disabled),
             color: isConnected ? Colors.blue : Colors.grey,
@@ -216,7 +250,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped, // Use our custom function
+        onDestinationSelected: _onItemTapped,
         destinations: const [
           NavigationDestination(icon: Icon(Icons.dashboard), label: 'Home'),
           NavigationDestination(icon: Icon(Icons.show_chart), label: 'Analytics'),
@@ -226,7 +260,6 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     );
   }
 
-  // --- DASHBOARD TAB ---
   Widget _buildDashboard() {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -275,13 +308,11 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     );
   }
 
-  // --- ANALYTICS TAB ---
   Widget _buildAnalytics() {
     if (isLoadingCharts) {
       return const Center(child: CircularProgressIndicator());
     }
     
-    // Check if data is empty (user just logged in or no sensors active)
     if (tempHistory.isEmpty) {
       return const Center(
         child: Column(
@@ -290,7 +321,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
             Icon(Icons.bar_chart, size: 80, color: Colors.grey),
             SizedBox(height: 20),
             Text("No data available yet.", style: TextStyle(color: Colors.grey)),
-            Text("Wait for the 5-min upload cycle.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            Text("Wait for 5-min cycle or use Sync.", style: TextStyle(color: Colors.grey, fontSize: 12)),
           ],
         ),
       );
@@ -298,7 +329,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
 
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: ListView( // Use ListView to allow scrolling on small screens
+      child: ListView(
         children: [
           const Text("Temperature History (24h)", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 10),
@@ -310,7 +341,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
                 lineBarsData: [LineChartBarData(spots: tempHistory, isCurved: true, color: Colors.orange, dotData: const FlDotData(show: true))],
                 titlesData: const FlTitlesData(
                   leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)), // Hide index numbers
+                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                 ),
@@ -344,7 +375,6 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     );
   }
 
-  // --- SECURITY CARD WIDGET ---
   Widget _buildSecurityStatusCard() {
     Color bgColor;
     Color iconColor;

@@ -24,7 +24,6 @@ class _RegisterPageState extends State<RegisterPage> {
   bool _passwordsMatch = true;
 
   Future<void> _handleRegister() async {
-    // 1. Validation
     if (_nameCtrl.text.isEmpty || _uidCtrl.text.isEmpty || _emailCtrl.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Fill all fields")));
       return;
@@ -40,7 +39,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
     setState(() => _isLoading = true);
     
-    // 2. Generate & Send OTP
     String otp = _auth.generateOtp();
     bool sent = await _emailService.sendOtpEmail(_emailCtrl.text.trim(), otp);
 
@@ -48,7 +46,6 @@ class _RegisterPageState extends State<RegisterPage> {
 
     if (sent) {
       if(!mounted) return;
-      // 3. Navigate to OTP Page (Pass the registration data to finish later)
       Navigator.push(
         context, 
         MaterialPageRoute(builder: (_) => OtpPage(

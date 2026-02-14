@@ -17,7 +17,6 @@ class _LoginPageState extends State<LoginPage> {
   final AuthService _auth = AuthService();
   bool _isLoading = false;
 
-  // --- LOGO BUILDER (IntelliHome Style) ---
   Widget _buildSmartHubLogo() {
     return Stack(
       alignment: Alignment.center,
@@ -52,7 +51,6 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isLoading = true);
     try {
-      // Login using the AuthService (Firestore check)
       await _auth.loginWithUserID(_uidCtrl.text.trim(), _passCtrl.text.trim());
       
       if(mounted) {
@@ -69,7 +67,6 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // FIX: Center + SingleChildScrollView prevents the yellow/black overflow error
       body: Center( 
         child: SingleChildScrollView(
           child: Padding(
@@ -128,7 +125,6 @@ class _LoginPageState extends State<LoginPage> {
                 
                 const SizedBox(height: 15),
 
-                // These buttons were likely getting pushed off-screen
                 TextButton(
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecoveryPage())),
                   child: const Text("Forgot ID or Password?"),
