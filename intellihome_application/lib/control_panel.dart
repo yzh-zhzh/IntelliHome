@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'select_bonded_device_page.dart'; 
 
 class ControlPanelPage extends StatefulWidget {
   const ControlPanelPage({super.key});
@@ -12,14 +13,16 @@ class ControlPanelPage extends StatefulWidget {
 }
 
 class _ControlPanelPageState extends State<ControlPanelPage> {
-  // --- BLUETOOTH & DATA VARIABLES (Same as before) ---
+  // --- BLUETOOTH VARIABLES ---
   BluetoothConnection? connection;
   bool isConnected = false;
   String _buffer = '';
   
+  // --- SENSOR DATA STATE ---
   String temp = "--";
-  String light = "--";
+  String humidity = "--"; // CHANGED: from 'light' to 'humidity'
   String rain = "--";
+  String dist = "--"; 
   bool isRaining = false;
   bool isWindowOpen = false;
 
@@ -39,35 +42,32 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
   }
 
   Future<void> _connectToBluetooth() async {
-    // Show loading indicator
+    final BluetoothDevice? selectedDevice = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const SelectBondedDevicePage(checkAvailability: false),
+      ),
+    );
+
+    if (selectedDevice == null) return;
+
+    if (!mounted) return;
     showDialog(
       context: context, 
       barrierDismissible: false,
       builder: (c) => const Center(child: CircularProgressIndicator()),
     );
 
-    List<BluetoothDevice> devices = await FlutterBluetoothSerial.instance.getBondedDevices();
-    BluetoothDevice? device;
     try {
-      device = devices.firstWhere((d) => d.name == "HC-05"); // Check your device name!
-    } catch (e) {
-      Navigator.pop(context); // Close loading
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("HC-05 not found! Pair it in settings first.")),
-      );
-      return;
-    }
-
-    try {
-      connection = await BluetoothConnection.toAddress(device.address);
+      connection = await BluetoothConnection.toAddress(selectedDevice.address);
       setState(() => isConnected = true);
       
       connection!.input!.listen(_onDataReceived).onDone(() {
-        setState(() => isConnected = false);
+        if (mounted) setState(() => isConnected = false);
       });
-      Navigator.pop(context); // Close loading
+      
+      if (mounted) Navigator.pop(context); 
     } catch (e) {
-      Navigator.pop(context);
+      if (mounted) Navigator.pop(context); 
       print("Connection Error: $e");
     }
   }
@@ -75,11 +75,13 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
   void _onDataReceived(Uint8List data) {
     String incoming = ascii.decode(data);
     _buffer += incoming;
+    
     if (_buffer.contains('\n')) {
       List<String> lines = _buffer.split('\n');
       for (String line in lines) {
-        if (line.isNotEmpty && line.contains(',')) {
-          _parseSensorData(line);
+        String trimmedLine = line.trim(); 
+        if (trimmedLine.isNotEmpty && trimmedLine.contains(',')) {
+          _parseSensorData(trimmedLine);
         }
       }
       _buffer = lines.last; 
@@ -88,12 +90,17 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
 
   void _parseSensorData(String line) {
     List<String> values = line.split(',');
-    if (values.length >= 4) {
+    
+    // Format: Temp, Humidity, Rain, IsRaining, Dist
+    if (values.length >= 5) {
       setState(() {
-        temp = values[0];
-        light = values[1];
-        rain = values[2];
+        temp = values[0].trim();
+        humidity = values[1].trim(); // CHANGED: Now reading Humidity
+        rain = values[2].trim();
         isRaining = values[3].trim() == '1';
+        dist = values[4].trim(); 
+        
+        // Safety Logic
         if (isRaining) isWindowOpen = false;
       });
     }
@@ -106,17 +113,19 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
       
       if (cmd == '3' && !isRaining) setState(() => isWindowOpen = true);
       if (cmd == '4') setState(() => isWindowOpen = false);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Not connected!")),
+      );
     }
   }
 
-  // --- NEW UI DESIGN STARTS HERE ---
+  // --- UI BUILD ---
 
   @override
   Widget build(BuildContext context) {
-    // Define a modern color palette
     final bgColor = Colors.grey.shade100;
-    final primaryColor = const Color(0xFF2A2D3E); // Dark Navy
-    final accentColor = const Color(0xFF6C63FF); // Modern Blurple
+    final primaryColor = const Color(0xFF2A2D3E);
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -126,7 +135,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. HEADER & CONNECTION STATUS
+              // 1. HEADER
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -162,20 +171,21 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
               
               const SizedBox(height: 30),
 
-              // 2. SENSOR CARDS (WIDGETS)
+              // 2. SENSOR ROW (Temp, Humidity, Rain)
               Row(
                 children: [
                   Expanded(child: _buildSensorTile("Temp", "$temp°C", Icons.thermostat, Colors.orange)),
                   const SizedBox(width: 15),
-                  Expanded(child: _buildSensorTile("Light", light, Icons.wb_sunny, Colors.amber)),
+                  // CHANGED: Humidity Widget
+                  Expanded(child: _buildSensorTile("Humidity", "$humidity%", Icons.opacity, Colors.lightBlue)),
                   const SizedBox(width: 15),
                   Expanded(child: _buildSensorTile("Rain", rain, Icons.water_drop, Colors.blue, isAlert: isRaining)),
                 ],
               ),
-
+              
               const SizedBox(height: 20),
 
-              // 3. RAIN ALERT BANNER
+              // 3. RAIN ALERT
               if (isRaining)
                 Container(
                   width: double.infinity,
@@ -195,7 +205,7 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
                   ),
                 ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 20),
               
               Text("Quick Actions", style: TextStyle(color: primaryColor, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 15),
@@ -204,12 +214,12 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
               Expanded(
                 child: GridView.count(
                   crossAxisCount: 2,
-                  childAspectRatio: 1.5, // Make buttons wider than they are tall
+                  childAspectRatio: 1.5,
                   crossAxisSpacing: 15,
                   mainAxisSpacing: 15,
                   children: [
                     _buildActionBtn("AC ON", "Manual Mode", Icons.ac_unit, Colors.blue, '1'),
-                    _buildActionBtn("AC AUTO", "Sensor Mode", Icons.hdr_auto, Colors.teal, '2'),
+                    _buildActionBtn("AC OFF", "Turn Off", Icons.power_settings_new, Colors.blueGrey, '2'),
                     _buildActionBtn("Win OPEN", "Open Window", Icons.window, Colors.orange, '3', isLocked: isRaining),
                     _buildActionBtn("Win CLOSE", "Close Window", Icons.sensor_window, Colors.deepOrange, '4'),
                     _buildActionBtn("Curtain UP", "Open Blinds", Icons.vertical_align_top, Colors.purple, '5'),
@@ -223,8 +233,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
       ),
     );
   }
-
-  // --- WIDGET BUILDERS ---
 
   Widget _buildSensorTile(String label, String value, IconData icon, Color color, {bool isAlert = false}) {
     return Container(
