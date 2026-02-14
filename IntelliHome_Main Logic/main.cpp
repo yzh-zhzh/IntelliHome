@@ -364,7 +364,9 @@ int main() {
             printf("T:%.1f | R:%.2f | D:%.1f | Home:%d\n", temp, rainVal, dist, isPersonHome);
 
             char buffer[60];
-            int len = sprintf(buffer, "%.1f,%.1f,%.2f,%d,%.1f\r\n", temp, humidity, rainVal, isRaining, dist);
+            int len = sprintf(buffer, "%.1f,%.1f,%.2f,%d,%.1f,%d,%d,%d\r\n", 
+                  temp, humidity, rainVal, isRaining, dist, 
+                  isPersonHome, alarmTriggered, acState);
             btUART.write(buffer, len); 
 
             blueLed = 1; ThisThread::sleep_for(100ms); blueLed = 0;
