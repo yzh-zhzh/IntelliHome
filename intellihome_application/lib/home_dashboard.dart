@@ -156,7 +156,7 @@ class _HomeDashboardState extends State<HomeDashboard> {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // Top Cards
+        // --- SENSOR CARDS ---
         Row(
           children: [
             Expanded(child: _buildSensorCard("Temp", "${temp.toStringAsFixed(1)}°C", Icons.thermostat, Colors.orange)),
@@ -166,19 +166,30 @@ class _HomeDashboardState extends State<HomeDashboard> {
         ),
         const SizedBox(height: 20),
         
-        // Status Banners
-        if (isRaining) _buildAlertBanner("RAINING DETECTED", Colors.blue),
-        if (isAlarm) _buildAlertBanner("INTRUDER ALARM ACTIVE!", Colors.red),
-        
-        const SizedBox(height: 20),
+        // --- ALERTS ---
+        if (isRaining) ...[
+          _buildAlertBanner("RAINING DETECTED", Colors.blue),
+          const SizedBox(height: 20),
+        ],
+        if (isAlarm) ...[
+          _buildAlertBanner("INTRUDER ALARM ACTIVE!", Colors.red),
+          const SizedBox(height: 20),
+        ],
+
         const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
+        const SizedBox(height: 15),
         
-        Wrap(
-          spacing: 15, runSpacing: 15,
+        // --- GRID VIEW (This fixes the alignment) ---
+        GridView.count(
+          shrinkWrap: true, // Allows Grid to sit inside ListView
+          physics: const NeverScrollableScrollPhysics(), // Disables Grid's internal scroll
+          crossAxisCount: 2, // 2 Columns
+          crossAxisSpacing: 15, // Horizontal gap
+          mainAxisSpacing: 15, // Vertical gap
+          childAspectRatio: 1.5, // Ratio > 1 makes buttons wider (rectangular) vs square
           children: [
-            _buildActionBtn("AC", isAcOn ? "ON" : "OFF", Icons.ac_unit, isAcOn ? Colors.blue : Colors.grey, '1'), // '1' forces ON
-            _buildActionBtn("AC OFF", "Force", Icons.power_off, Colors.red.shade300, '2'),
+            _buildActionBtn("AC", isAcOn ? "ON" : "OFF", Icons.ac_unit, isAcOn ? Colors.blue : Colors.grey, '1'),
+            _buildActionBtn("AC OFF", "AUTO AC Mode", Icons.power_off, Colors.red.shade300, '2'),
             _buildActionBtn("Window", "OPEN", Icons.window, Colors.green, '3'),
             _buildActionBtn("Window", "CLOSE", Icons.sensor_window, Colors.brown, '4'),
             _buildActionBtn("Curtain", "UP", Icons.vertical_align_top, Colors.purple, '5'),
