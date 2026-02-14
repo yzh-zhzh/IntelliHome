@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
-import 'home_dashboard.dart';
+import 'package:intellihome_application/screens/dashboard/home_dashboard.dart';
+import 'package:intellihome_application/services/auth_service.dart';
 import 'register_page.dart';
 import 'recovery_page.dart';
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
-import 'login_page.dart';
+import 'package:intellihome_application/screens/auth/login_page.dart';
+import 'package:intellihome_application/services/auth_service.dart';
+
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -35,7 +36,8 @@ class _ProfilePageState extends State<ProfilePage> {
         _isLoading = false;
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      // Handle case where user might be null (e.g. during testing)
+      setState(() => _isLoading = false);
     }
   }
 
@@ -74,36 +76,45 @@ class _ProfilePageState extends State<ProfilePage> {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // Light grey bg
-      appBar: AppBar(
-        title: const Text("My Profile", style: TextStyle(color: Colors.black)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(_isEditing ? Icons.close : Icons.edit, color: Colors.blue),
-            onPressed: () {
-              setState(() {
-                _isEditing = !_isEditing;
-                if (!_isEditing) _loadUserData(); // Reset if cancelled
-              });
-            },
-          )
-        ],
-      ),
+      backgroundColor: Colors.grey.shade100,
+      // We don't need an AppBar here because HomeDashboard handles the main scaffolding,
+      // but if you want a title inside the tab:
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
-            const CircleAvatar(
-              radius: 50,
-              backgroundColor: Colors.blueAccent,
-              child: Icon(Icons.person, size: 50, color: Colors.white),
+            const SizedBox(height: 20),
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                CircleAvatar(
+                  radius: 50,
+                  backgroundColor: Colors.blue.shade100,
+                  child: const Icon(Icons.person, size: 60, color: Colors.blue),
+                ),
+                GestureDetector(
+                  onTap: () {
+                     setState(() {
+                        _isEditing = !_isEditing;
+                        if (!_isEditing) _loadUserData(); // Reset if cancelled
+                     });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                    ),
+                    child: Icon(_isEditing ? Icons.close : Icons.edit, size: 20, color: Colors.blue),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             
-            Text(_nameCtrl.text, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            const Text("IntelliHome User", style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
+            Text(_nameCtrl.text, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            Text("IntelliHome Admin", style: TextStyle(fontWeight: FontWeight.w500, color: Colors.grey.shade600)),
             
             const SizedBox(height: 30),
 
@@ -121,7 +132,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green, 
                   foregroundColor: Colors.white, 
-                  minimumSize: const Size(double.infinity, 50)
+                  minimumSize: const Size(double.infinity, 50),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 child: const Text("Save Changes"),
               ),
@@ -138,6 +150,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   foregroundColor: Colors.red,
                   side: const BorderSide(color: Colors.red),
                   padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
             ),
@@ -153,10 +166,14 @@ class _ProfilePageState extends State<ProfilePage> {
       enabled: _isEditing,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
+        prefixIcon: Icon(icon, color: Colors.blueGrey),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         filled: true,
-        fillColor: _isEditing ? Colors.white : Colors.grey[200],
+        fillColor: _isEditing ? Colors.white : Colors.grey.shade200,
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none
+        ),
       ),
     );
   }

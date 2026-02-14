@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:intellihome_application/screens/auth/login_page.dart';
 import 'firebase_options.dart';
-import 'login_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

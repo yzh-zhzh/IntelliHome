@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'auth_service.dart';
-import 'email_service.dart';
+import 'package:intellihome_application/services/auth_service.dart';
+import 'package:intellihome_application/services/email_service.dart';
 import 'otp_page.dart';
 
 class RegisterPage extends StatefulWidget {
