@@ -12,12 +12,11 @@ class ControlPanelPage extends StatefulWidget {
 }
 
 class _ControlPanelPageState extends State<ControlPanelPage> {
-  // Bluetooth Variables
+  // --- BLUETOOTH & DATA VARIABLES (Same as before) ---
   BluetoothConnection? connection;
   bool isConnected = false;
-  String _buffer = ''; // Stores incoming partial data
-
-  // Sensor Data Variables
+  String _buffer = '';
+  
   String temp = "--";
   String light = "--";
   String rain = "--";
@@ -30,7 +29,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
     _requestPermissions();
   }
 
-  // 1. Request Android Permissions
   Future<void> _requestPermissions() async {
     await [
       Permission.bluetooth,
@@ -40,203 +38,243 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
     ].request();
   }
 
-  // 2. Connect to the HC-05/06 Module
   Future<void> _connectToBluetooth() async {
-    // GET LIST OF PAIRED DEVICES
+    // Show loading indicator
+    showDialog(
+      context: context, 
+      barrierDismissible: false,
+      builder: (c) => const Center(child: CircularProgressIndicator()),
+    );
+
     List<BluetoothDevice> devices = await FlutterBluetoothSerial.instance.getBondedDevices();
-    
-    // FIND YOUR DEVICE (Change "HC-05" to your module's actual name!)
     BluetoothDevice? device;
     try {
-      device = devices.firstWhere((d) => d.name == "HC-05"); 
+      device = devices.firstWhere((d) => d.name == "HC-05"); // Check your device name!
     } catch (e) {
+      Navigator.pop(context); // Close loading
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("HC-05 not found in paired devices!")),
+        const SnackBar(content: Text("HC-05 not found! Pair it in settings first.")),
       );
       return;
     }
 
-    // ESTABLISH CONNECTION
     try {
       connection = await BluetoothConnection.toAddress(device.address);
-      setState(() {
-        isConnected = true;
-      });
+      setState(() => isConnected = true);
       
-      // START LISTENING TO DATA STREAM
       connection!.input!.listen(_onDataReceived).onDone(() {
-        setState(() { isConnected = false; });
+        setState(() => isConnected = false);
       });
-      
+      Navigator.pop(context); // Close loading
     } catch (e) {
+      Navigator.pop(context);
       print("Connection Error: $e");
     }
   }
 
-  // 3. Process Incoming Data (The Parser)
   void _onDataReceived(Uint8List data) {
-    // Decode bytes to string and append to buffer
     String incoming = ascii.decode(data);
     _buffer += incoming;
-
-    // If we see a "New Line" (\n), we have a full message
     if (_buffer.contains('\n')) {
       List<String> lines = _buffer.split('\n');
-      
-      // Process the last complete line (most recent data)
-      // We iterate to handle cases where multiple lines arrive at once
       for (String line in lines) {
         if (line.isNotEmpty && line.contains(',')) {
           _parseSensorData(line);
         }
       }
-      
-      // Keep only the incomplete part for the next chunk
       _buffer = lines.last; 
     }
   }
 
   void _parseSensorData(String line) {
-    // Expected format: "28.5,0.80,0.10,0" (Temp, Light, Rain, IsRaining)
     List<String> values = line.split(',');
-
     if (values.length >= 4) {
       setState(() {
         temp = values[0];
         light = values[1];
         rain = values[2];
         isRaining = values[3].trim() == '1';
-        
-        // Safety: If it's raining, force UI to show window closed
         if (isRaining) isWindowOpen = false;
       });
     }
   }
 
-  // 4. Send Commands to STM32
   void _sendCommand(String cmd) async {
     if (connection != null && isConnected) {
       connection!.output.add(ascii.encode(cmd));
       await connection!.output.allSent;
       
-      // Optimistic UI update
       if (cmd == '3' && !isRaining) setState(() => isWindowOpen = true);
       if (cmd == '4') setState(() => isWindowOpen = false);
     }
   }
 
+  // --- NEW UI DESIGN STARTS HERE ---
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Smart Home Controller")),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            // CONNECTION STATUS
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(isConnected ? "Connected to Home" : "Disconnected",
-                    style: TextStyle(color: isConnected ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
-                ElevatedButton(
-                  onPressed: isConnected ? () => connection?.close() : _connectToBluetooth,
-                  child: Text(isConnected ? "Disconnect" : "Connect"),
-                ),
-              ],
-            ),
-            const Divider(height: 30),
+    // Define a modern color palette
+    final bgColor = Colors.grey.shade100;
+    final primaryColor = const Color(0xFF2A2D3E); // Dark Navy
+    final accentColor = const Color(0xFF6C63FF); // Modern Blurple
 
-            // SENSOR DASHBOARD
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _buildSensorCard("Temp", "$temp°C", Icons.thermostat),
-                _buildSensorCard("Light", light, Icons.light_mode),
-                _buildSensorCard("Rain", rain, Icons.water_drop, isAlert: isRaining),
-              ],
-            ),
-            const SizedBox(height: 20),
-            
-            if (isRaining)
-              Container(
-                padding: const EdgeInsets.all(10),
-                color: Colors.redAccent,
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 1. HEADER & CONNECTION STATUS
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Welcome Home,", style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+                      Text("Smart Control", style: TextStyle(color: primaryColor, fontSize: 26, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  InkWell(
+                    onTap: isConnected ? () => connection?.close() : _connectToBluetooth,
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isConnected ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: isConnected ? Colors.green : Colors.red),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.circle, size: 10, color: isConnected ? Colors.green : Colors.red),
+                          const SizedBox(width: 8),
+                          Text(isConnected ? "Online" : "Connect", 
+                               style: TextStyle(color: isConnected ? Colors.green : Colors.red, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 30),
+
+              // 2. SENSOR CARDS (WIDGETS)
+              Row(
+                children: [
+                  Expanded(child: _buildSensorTile("Temp", "$temp°C", Icons.thermostat, Colors.orange)),
+                  const SizedBox(width: 15),
+                  Expanded(child: _buildSensorTile("Light", light, Icons.wb_sunny, Colors.amber)),
+                  const SizedBox(width: 15),
+                  Expanded(child: _buildSensorTile("Rain", rain, Icons.water_drop, Colors.blue, isAlert: isRaining)),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // 3. RAIN ALERT BANNER
+              if (isRaining)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.redAccent,
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [BoxShadow(color: Colors.red.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))],
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.white),
+                      SizedBox(width: 10),
+                      Text("RAINING! WINDOW AUTO-LOCKED", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+
+              const SizedBox(height: 30),
+              
+              Text("Quick Actions", style: TextStyle(color: primaryColor, fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 15),
+
+              // 4. CONTROL GRID
+              Expanded(
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  childAspectRatio: 1.5, // Make buttons wider than they are tall
+                  crossAxisSpacing: 15,
+                  mainAxisSpacing: 15,
                   children: [
-                    Icon(Icons.warning, color: Colors.white),
-                    SizedBox(width: 10),
-                    Text("RAINING! WINDOW BLOCKED", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    _buildActionBtn("AC ON", "Manual Mode", Icons.ac_unit, Colors.blue, '1'),
+                    _buildActionBtn("AC AUTO", "Sensor Mode", Icons.hdr_auto, Colors.teal, '2'),
+                    _buildActionBtn("Win OPEN", "Open Window", Icons.window, Colors.orange, '3', isLocked: isRaining),
+                    _buildActionBtn("Win CLOSE", "Close Window", Icons.sensor_window, Colors.deepOrange, '4'),
+                    _buildActionBtn("Curtain UP", "Open Blinds", Icons.vertical_align_top, Colors.purple, '5'),
+                    _buildActionBtn("Curtain DOWN", "Close Blinds", Icons.vertical_align_bottom, Colors.deepPurple, '6'),
                   ],
                 ),
               ),
-
-            const Divider(height: 30),
-            
-            // CONTROLS
-            const Text("Manual Controls", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 15),
-            
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildControlButton("AC ON", '1', Colors.blue),
-                _buildControlButton("AC AUTO", '2', Colors.grey),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                // Window Open (Disabled if raining)
-                Opacity(
-                  opacity: isRaining ? 0.5 : 1.0,
-                  child: _buildControlButton("Win OPEN", '3', Colors.orange, disabled: isRaining),
-                ),
-                _buildControlButton("Win CLOSE", '4', Colors.orange),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildControlButton("Curtain UP", '5', Colors.purple),
-                _buildControlButton("Curtain DOWN", '6', Colors.purple),
-              ],
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildSensorCard(String title, String value, IconData icon, {bool isAlert = false}) {
-    return Card(
-      color: isAlert ? Colors.red.shade100 : Colors.blue.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
+  // --- WIDGET BUILDERS ---
+
+  Widget _buildSensorTile(String label, String value, IconData icon, Color color, {bool isAlert = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      decoration: BoxDecoration(
+        color: isAlert ? Colors.red.shade50 : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+        border: isAlert ? Border.all(color: Colors.red.shade200) : null,
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: isAlert ? Colors.red : color, size: 28),
+          const SizedBox(height: 10),
+          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          const SizedBox(height: 5),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionBtn(String title, String subtitle, IconData icon, Color color, String cmd, {bool isLocked = false}) {
+    return InkWell(
+      onTap: isLocked ? null : () => _sendCommand(cmd),
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(15),
+        decoration: BoxDecoration(
+          color: isLocked ? Colors.grey.shade200 : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isLocked ? [] : [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5))],
+        ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 30, color: isAlert ? Colors.red : Colors.blue),
-            const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(value, style: const TextStyle(fontSize: 18)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(isLocked ? Icons.lock : icon, color: isLocked ? Colors.grey : color, size: 24),
+                if (isLocked) const Icon(Icons.block, color: Colors.red, size: 16),
+              ],
+            ),
+            const Spacer(),
+            Text(title, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isLocked ? Colors.grey : Colors.grey.shade800)),
+            Text(subtitle, style: TextStyle(fontSize: 11, color: isLocked ? Colors.grey : Colors.grey.shade500)),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildControlButton(String label, String command, Color color, {bool disabled = false}) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      ),
-      onPressed: disabled ? null : () => _sendCommand(command),
-      child: Text(label),
     );
   }
 }
