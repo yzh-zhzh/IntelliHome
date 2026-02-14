@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "661463143449",
+    "project_id": "intellihome-2026",
+    "storage_bucket": "intellihome-2026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:661463143449:android:86c2e73ea9c1dd11ad4688",
+        "android_client_info": {
+          "package_name": "com.example.intellihome_application"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDxOPX8DNhF8NfYLklfxcXa1jlkYhWO1zM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
