@@ -347,6 +347,10 @@ int main() {
             // Updated print statement
             printf("Temp: %.1f C | Light: %.2f | Rain: %.2f\n", temp, lightVal, rainVal);
 
+            char buffer[50];
+            int len = sprintf(buffer, "%.1f,%.2f,%.2f,%d\n", temp, lightVal, rainVal, isRaining);
+            btUART.write(buffer, len);
+
             // <-- NEW: Rain detection logic -->
             // Adjust the 0.6f threshold based on your specific sensor's sensitivity
             if (rainVal > 0.6f) { 
