@@ -15,28 +15,24 @@ class HomeDashboard extends StatefulWidget {
 }
 
 class _HomeDashboardState extends State<HomeDashboard> {
-  // --- BLUETOOTH & DATA ---
   BluetoothConnection? connection;
   bool isConnected = false;
   String _buffer = '';
 
-  // Sensor Data
   double temp = 0.0;
   double humidity = 0.0;
   double dist = 0.0;
   bool isRaining = false;
   
-  // Status Flags (New!)
   bool isPersonHome = true;
   bool isAlarm = false;
   bool isAcOn = false;
 
-  // History Data for Charts (Last 20 points)
   List<FlSpot> tempHistory = [];
   List<FlSpot> humHistory = [];
   int timeCounter = 0;
 
-  int _selectedIndex = 0; // Tab Index
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -48,7 +44,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
     await [Permission.bluetooth, Permission.bluetoothScan, Permission.bluetoothConnect, Permission.location].request();
   }
 
-  // --- BLUETOOTH LOGIC ---
   Future<void> _connectToBluetooth() async {
     final BluetoothDevice? selectedDevice = await Navigator.of(context).push(
       MaterialPageRoute(builder: (context) => const SelectBondedDevicePage(checkAvailability: false)),
@@ -85,24 +80,20 @@ class _HomeDashboardState extends State<HomeDashboard> {
 
   void _parseData(String line) {
     List<String> values = line.split(',');
-    // Expected: Temp, Hum, RainVal, IsRaining, Dist, IsHome, IsAlarm, IsAC
     if (values.length >= 8) {
       setState(() {
         temp = double.tryParse(values[0]) ?? 0.0;
         humidity = double.tryParse(values[1]) ?? 0.0;
-        // Skip RainVal (index 2)
         isRaining = values[3].trim() == '1';
         dist = double.tryParse(values[4]) ?? 0.0;
         isPersonHome = values[5].trim() == '1';
         isAlarm = values[6].trim() == '1';
         isAcOn = values[7].trim() == '1';
 
-        // Update Charts
         timeCounter++;
         tempHistory.add(FlSpot(timeCounter.toDouble(), temp));
         humHistory.add(FlSpot(timeCounter.toDouble(), humidity));
         
-        // Keep only last 20 points
         if (tempHistory.length > 20) tempHistory.removeAt(0);
         if (humHistory.length > 20) humHistory.removeAt(0);
       });
@@ -116,7 +107,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
     }
   }
 
-  // --- UI BUILDING ---
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -151,12 +141,10 @@ class _HomeDashboardState extends State<HomeDashboard> {
     );
   }
 
-  // --- TAB 1: DASHBOARD ---
   Widget _buildDashboard() {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        // --- SENSOR CARDS ---
         Row(
           children: [
             Expanded(child: _buildSensorCard("Temp", "${temp.toStringAsFixed(1)}°C", Icons.thermostat, Colors.orange)),
@@ -166,7 +154,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
         ),
         const SizedBox(height: 20),
         
-        // --- ALERTS ---
         if (isRaining) ...[
           _buildAlertBanner("RAINING DETECTED", Colors.blue),
           const SizedBox(height: 20),
@@ -179,14 +166,13 @@ class _HomeDashboardState extends State<HomeDashboard> {
         const Text("Quick Actions", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 15),
         
-        // --- GRID VIEW (This fixes the alignment) ---
         GridView.count(
-          shrinkWrap: true, // Allows Grid to sit inside ListView
-          physics: const NeverScrollableScrollPhysics(), // Disables Grid's internal scroll
-          crossAxisCount: 2, // 2 Columns
-          crossAxisSpacing: 15, // Horizontal gap
-          mainAxisSpacing: 15, // Vertical gap
-          childAspectRatio: 1.5, // Ratio > 1 makes buttons wider (rectangular) vs square
+          shrinkWrap: true, 
+          physics: const NeverScrollableScrollPhysics(), 
+          crossAxisCount: 2, 
+          crossAxisSpacing: 15, 
+          mainAxisSpacing: 15, 
+          childAspectRatio: 1.5, 
           children: [
             _buildActionBtn("AC", isAcOn ? "ON" : "OFF", Icons.ac_unit, isAcOn ? Colors.blue : Colors.grey, '1'),
             _buildActionBtn("AC OFF", "AUTO AC Mode", Icons.power_off, Colors.red.shade300, '2'),
@@ -200,7 +186,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
     );
   }
 
-  // --- TAB 2: ANALYTICS (CHARTS) ---
   Widget _buildAnalytics() {
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -236,7 +221,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
     );
   }
 
-  // --- TAB 3: SECURITY HUB ---
   Widget _buildSecurityHub() {
     return Center(
       child: Column(
@@ -260,7 +244,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15)),
               onPressed: () {
                 // To disarm remotely, you would need to implement a 'Disarm' command in C++
-                // For now, we can just stop the AC or similar
               },
               icon: const Icon(Icons.notifications_off),
               label: const Text("SYSTEM TRIGGERED"),
@@ -270,7 +253,6 @@ class _HomeDashboardState extends State<HomeDashboard> {
     );
   }
 
-  // --- WIDGET HELPERS ---
   Widget _buildSensorCard(String title, String value, IconData icon, Color color) {
     return Card(
       elevation: 4,

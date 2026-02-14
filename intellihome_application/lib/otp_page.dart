@@ -2,14 +2,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'auth_service.dart';
 import 'email_service.dart';
-import 'login_page.dart'; // To go back after success
+import 'login_page.dart';
 
 class OtpPage extends StatefulWidget {
   final String email;
   final String correctOtp;
   final bool isRegistration;
   
-  // Registration Data (only used if isRegistration = true)
+  // Only for Registration
   final String? regName;
   final String? regUid;
   final String? regPass;
@@ -32,36 +32,33 @@ class _OtpPageState extends State<OtpPage> {
   final _otpCtrl = TextEditingController();
   final AuthService _auth = AuthService();
   final EmailService _emailService = EmailService();
-
-  late String _currentValidOtp;
+  late String _currentOtp;
   
-  // Timer State
+  // Timer
   Timer? _timer;
-  int _secondsRemaining = 120; // 2 Minutes
+  int _start = 120;
   bool _canResend = false;
 
   @override
   void initState() {
     super.initState();
-    _currentValidOtp = widget.correctOtp;
+    _currentOtp = widget.correctOtp;
     _startTimer();
   }
 
   void _startTimer() {
     setState(() {
-      _secondsRemaining = 120;
+      _start = 120;
       _canResend = false;
     });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_secondsRemaining == 0) {
+      if (_start == 0) {
         setState(() {
           _canResend = true;
+          timer.cancel();
         });
-        timer.cancel();
       } else {
-        setState(() {
-          _secondsRemaining--;
-        });
+        setState(() => _start--);
       }
     });
   }
@@ -72,43 +69,28 @@ class _OtpPageState extends State<OtpPage> {
     super.dispose();
   }
 
-  Future<void> _resendOtp() async {
-    // Generate new OTP & reset 30 min expiration
+  void _resend() async {
     String newOtp = _auth.generateOtp();
-    
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Sending new code...")));
-    
     bool sent = await _emailService.sendOtpEmail(widget.email, newOtp);
-
     if (sent) {
-      setState(() {
-        _currentValidOtp = newOtp;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("New code sent!")));
-      _startTimer(); // Restart 2 min timer
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to send. Try again.")));
+      setState(() => _currentOtp = newOtp);
+      _startTimer();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("New Code Sent!")));
     }
   }
 
-  Future<void> _verify() async {
-    // 1. Check 30-Minute Expiration
+  void _verify() async {
+    // 1. Expiration Check
     if (!_auth.isOtpValid()) {
-      showDialog(
-        context: context, 
-        builder: (c) => AlertDialog(
-          title: const Text("Expired"),
-          content: const Text("This code has expired (30 mins limit). Please resend a new one."),
-          actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text("OK"))],
-        )
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("OTP Expired. Resend new code.")));
       return;
     }
 
-    // 2. Check Code Match
-    if (_otpCtrl.text.trim() == _currentValidOtp) {
+    // 2. Code Check
+    if (_otpCtrl.text.trim() == _currentOtp) {
+      
       if (widget.isRegistration) {
-        // Complete Registration
+        // --- REGISTRATION SUCCESS ---
         try {
           await _auth.registerUser(
             widget.regName!, 
@@ -116,38 +98,25 @@ class _OtpPageState extends State<OtpPage> {
             widget.email, 
             widget.regPass!
           );
-          
           if(!mounted) return;
-          // Go to Login
-          Navigator.pushAndRemoveUntil(
-            context, 
-            MaterialPageRoute(builder: (_) => const LoginPage()), 
-            (route) => false
-          );
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Account Created! Please Login.")));
-
+          Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginPage()), (route) => false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Account Created! Login now.")));
         } catch (e) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Registration Error: $e")));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
         }
       } else {
-        // Recovery Flow (Just show success logic)
+        // --- RECOVERY SUCCESS ---
         try {
-          String uid = await _auth.retrieveUserID(widget.email);
-          await _auth.sendPasswordReset(widget.email);
-          
+          Map<String, String> creds = await _auth.getCredentials(widget.email);
           if(!mounted) return;
           showDialog(
             context: context, 
             builder: (c) => AlertDialog(
-              title: const Text("Recovery Success"),
-              content: Text("Your User ID is: $uid\n\nA password reset link has been sent to ${widget.email}."),
+              title: const Text("Account Recovered"),
+              content: Text("Please write these down:\n\nUser ID: ${creds['userId']}\nPassword: ${creds['password']}"),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.pushAndRemoveUntil(
-                    context, 
-                    MaterialPageRoute(builder: (_) => const LoginPage()), 
-                    (route) => false
-                  ), 
+                  onPressed: () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginPage()), (route) => false), 
                   child: const Text("Back to Login")
                 )
               ],
@@ -158,16 +127,8 @@ class _OtpPageState extends State<OtpPage> {
         }
       }
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Invalid Code"), backgroundColor: Colors.red)
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Invalid Code")));
     }
-  }
-
-  String get _timerText {
-    int min = _secondsRemaining ~/ 60;
-    int sec = _secondsRemaining % 60;
-    return "${min.toString().padLeft(2, '0')}:${sec.toString().padLeft(2, '0')}";
   }
 
   @override
@@ -175,37 +136,22 @@ class _OtpPageState extends State<OtpPage> {
     return Scaffold(
       appBar: AppBar(title: const Text("Verification")),
       body: Padding(
-        padding: const EdgeInsets.all(25),
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Text("Enter the code sent to ${widget.email}", textAlign: TextAlign.center),
+            Text("Enter code sent to ${widget.email}"),
             const SizedBox(height: 20),
             TextField(
               controller: _otpCtrl,
               textAlign: TextAlign.center,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(fontSize: 24, letterSpacing: 8),
               decoration: const InputDecoration(hintText: "######"),
-            ),
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _verify,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(15)),
-                child: const Text("Verify Code"),
-              ),
+              keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 20),
+            ElevatedButton(onPressed: _verify, child: const Text("Verify")),
             TextButton(
-              onPressed: _canResend ? _resendOtp : null,
-              child: Text(
-                _canResend ? "Resend Code" : "Resend in $_timerText",
-                style: TextStyle(
-                  color: _canResend ? Colors.blue : Colors.grey,
-                  fontWeight: FontWeight.bold
-                ),
-              ),
+              onPressed: _canResend ? _resend : null,
+              child: Text(_canResend ? "Resend Code" : "Resend in $_start s"),
             )
           ],
         ),

@@ -13,14 +13,12 @@ class ControlPanelPage extends StatefulWidget {
 }
 
 class _ControlPanelPageState extends State<ControlPanelPage> {
-  // --- BLUETOOTH VARIABLES ---
   BluetoothConnection? connection;
   bool isConnected = false;
   String _buffer = '';
   
-  // --- SENSOR DATA STATE ---
   String temp = "--";
-  String humidity = "--"; // CHANGED: from 'light' to 'humidity'
+  String humidity = "--";
   String rain = "--";
   String dist = "--"; 
   bool isRaining = false;
@@ -91,11 +89,10 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
   void _parseSensorData(String line) {
     List<String> values = line.split(',');
     
-    // Format: Temp, Humidity, Rain, IsRaining, Dist
     if (values.length >= 5) {
       setState(() {
         temp = values[0].trim();
-        humidity = values[1].trim(); // CHANGED: Now reading Humidity
+        humidity = values[1].trim(); 
         rain = values[2].trim();
         isRaining = values[3].trim() == '1';
         dist = values[4].trim(); 
@@ -120,7 +117,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
     }
   }
 
-  // --- UI BUILD ---
 
   @override
   Widget build(BuildContext context) {
@@ -171,7 +167,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
               
               const SizedBox(height: 30),
 
-              // 2. SENSOR ROW (Temp, Humidity, Rain)
               Row(
                 children: [
                   Expanded(child: _buildSensorTile("Temp", "$temp°C", Icons.thermostat, Colors.orange)),
@@ -185,7 +180,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
               
               const SizedBox(height: 20),
 
-              // 3. RAIN ALERT
               if (isRaining)
                 Container(
                   width: double.infinity,
@@ -210,7 +204,6 @@ class _ControlPanelPageState extends State<ControlPanelPage> {
               Text("Quick Actions", style: TextStyle(color: primaryColor, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 15),
 
-              // 4. CONTROL GRID
               Expanded(
                 child: GridView.count(
                   crossAxisCount: 2,

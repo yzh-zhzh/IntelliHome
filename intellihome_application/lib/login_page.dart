@@ -17,7 +17,7 @@ class _LoginPageState extends State<LoginPage> {
   final AuthService _auth = AuthService();
   bool _isLoading = false;
 
-  // --- LOGO BUILDER (From previous step) ---
+  // --- LOGO BUILDER (IntelliHome Style) ---
   Widget _buildSmartHubLogo() {
     return Stack(
       alignment: Alignment.center,
@@ -52,7 +52,9 @@ class _LoginPageState extends State<LoginPage> {
 
     setState(() => _isLoading = true);
     try {
+      // Login using the AuthService (Firestore check)
       await _auth.loginWithUserID(_uidCtrl.text.trim(), _passCtrl.text.trim());
+      
       if(mounted) {
         Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeDashboard()));
       }
@@ -67,7 +69,7 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      // FIX IS HERE: Center + SingleChildScrollView prevents overflow
+      // FIX: Center + SingleChildScrollView prevents the yellow/black overflow error
       body: Center( 
         child: SingleChildScrollView(
           child: Padding(
@@ -75,10 +77,13 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _buildSmartHubLogo(), // Using the new logo
+                _buildSmartHubLogo(),
                 
                 const SizedBox(height: 20),
-                const Text("IntelliHome", style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
+                const Text(
+                  "IntelliHome", 
+                  style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)
+                ),
                 const SizedBox(height: 40),
                 
                 TextField(
@@ -111,8 +116,11 @@ class _LoginPageState extends State<LoginPage> {
                       onPressed: _login, 
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 15),
-                        backgroundColor: Colors.blueAccent, // Optional styling
-                        foregroundColor: Colors.white
+                        backgroundColor: Colors.blueAccent, 
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                       child: const Text("LOGIN", style: TextStyle(fontSize: 16)),
                     ),
@@ -120,6 +128,7 @@ class _LoginPageState extends State<LoginPage> {
                 
                 const SizedBox(height: 15),
 
+                // These buttons were likely getting pushed off-screen
                 TextButton(
                   onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecoveryPage())),
                   child: const Text("Forgot ID or Password?"),

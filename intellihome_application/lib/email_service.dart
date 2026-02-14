@@ -2,9 +2,8 @@ import 'package:mailer/mailer.dart';
 import 'package:mailer/smtp_server.dart';
 
 class EmailService {
-  // TODO: Replace with your own email and App Password
   final String _username = 'intellihome.2026@gmail.com';
-  final String _password = 'tunl tbpx enwn qoif'; // Paste your 16-digit App Password here
+  final String _password = 'tunl tbpx enwn qoif';
   
   Future<bool> sendOtpEmail(String recipientEmail, String otp) async {
     final smtpServer = gmail(_username, _password);
