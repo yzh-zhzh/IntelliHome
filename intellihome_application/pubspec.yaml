@@ -19,6 +19,7 @@ dev_dependencies:
   home_widget: ^0.3.0
   geolocator: ^10.1.0
   http: ^1.1.0
+  fl_chart: ^0.66.0
 
 flutter:
   uses-material-design: true
