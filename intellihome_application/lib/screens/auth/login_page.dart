@@ -20,7 +20,6 @@ class _LoginPageState extends State<LoginPage> {
 
   bool _isLoading = false;
   
-  // State for "Welcome Back" Mode
   String? _savedUserId;
   String? _savedUserName;
   bool _canCheckBiometrics = false;
@@ -34,7 +33,6 @@ class _LoginPageState extends State<LoginPage> {
   Future<void> _checkSavedSession() async {
     String? savedId = await _auth.getSavedUserId();
     if (savedId != null) {
-      // We have a remembered user
       String name = await _auth.getUserName(savedId);
       bool bioEnabled = await _auth.isBiometricEnabled();
       bool deviceSupport = await _localAuth.canCheckBiometrics;
@@ -56,7 +54,6 @@ class _LoginPageState extends State<LoginPage> {
 
       if (didAuthenticate) {
         setState(() => _isLoading = true);
-        // Direct Login (Bypass password)
         await _auth.loginDirectly(_savedUserId!);
         if(mounted) {
           Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeDashboard()));
@@ -111,7 +108,6 @@ class _LoginPageState extends State<LoginPage> {
                 const Text("IntelliHome", style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 40),
                 
-                // --- DYNAMIC UI SWITCH ---
                 if (_savedUserId != null) 
                   _buildWelcomeBackUI()
                 else 
@@ -151,17 +147,14 @@ class _LoginPageState extends State<LoginPage> {
           const SizedBox(height: 15),
         ],
 
-        // Option to login with password even if remembered
         SizedBox(
           width: double.infinity,
           height: 55,
           child: OutlinedButton(
             onPressed: () {
-              // Pre-fill ID and switch to standard mode temporarily (or just show password field here)
-              // Simplest approach: Switch to standard mode with ID pre-filled
               setState(() {
                  _uidCtrl.text = _savedUserId!;
-                 _savedUserId = null; // Forces standard UI to render
+                 _savedUserId = null; 
               });
             },
             style: OutlinedButton.styleFrom(
