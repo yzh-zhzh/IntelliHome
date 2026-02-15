@@ -83,7 +83,7 @@ The companion app is built with Flutter and communicates via Bluetooth Classic (
 ### Installation
 1.  **Clone the Repo:**
     ```bash
-    git clone [https://github.com/yourusername/stm32-smart-home.git](https://github.com/yourusername/stm32-smart-home.git)
+    git clone [https://github.com/yzh-zhzh/IntelliHome.git](https://github.com/yzh-zhzh/IntelliHome.git)
     ```
 2.  **Flash the Firmware:**
     * Open the project in Mbed Studio.
