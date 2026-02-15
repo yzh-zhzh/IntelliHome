@@ -107,7 +107,7 @@ class _OtpPageState extends State<OtpPage> {
             context: context, 
             builder: (c) => AlertDialog(
               title: const Text("Account Recovered"),
-              content: Text("Please write these down:\n\nUser ID: ${creds['userId']}\nPassword: ${creds['password']}"),
+              content: Text("User ID: ${creds['userId']}\nPassword: ${creds['password']}"),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (_) => const LoginPage()), (route) => false), 
