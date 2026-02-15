@@ -7,8 +7,9 @@ A comprehensive IoT-based smart home automation and security system built using 
 This project simulates a smart home environment where various sensors monitor real-time conditions (temperature, light, rain, and motion) to automate household appliances. The system features a security mode with password protection and offers manual overrides through a physical keypad or a mobile app.
 
 ### Key Features
-* **Automated Climate Control:** * **Fan/AC:** Automatically turns on when temperature exceeds 28°C.
-    * [cite_start]**Windows:** Automatically closes if rain is detected[cite: 2].
+* **Automated Climate Control:** 
+	* **Fan/AC:** Automatically turns on when temperature exceeds 28°C.
+    * **Windows:** Automatically closes if rain is detected.
 * **Smart Lighting & Curtains:**
     * **Curtains:** Automatically open/close based on light levels (Day/Night mode).
     * **Lights:** Turn on automatically when it gets dark.
@@ -22,13 +23,12 @@ This project simulates a smart home environment where various sensors monitor re
 
 ## 🛠️ Hardware Components
 
-* [cite_start]**Microcontroller:** STM32 Nucleo-F103RB [cite: 1]
+* **Microcontroller:** STM32 Nucleo-F103RB
 * **Sensors:**
     * DHT11 Temperature & Humidity Sensor
     * LDR (Light Dependent Resistor)
     * [cite_start]Rain Sensor (Analog) [cite: 2]
     * HC-SR04 Ultrasonic Distance Sensor
-    * PIR Motion Sensor (Interrupt-based)
 * **Actuators:**
     * Servo Motors (x2): For Window and Curtain control
     * DC Motor (with Fan blade): Simulates Air Conditioning
@@ -38,6 +38,7 @@ This project simulates a smart home environment where various sensors monitor re
     * 16x2 LCD Display
     * 4x3 Matrix Keypad
     * HC-05/HC-06 Bluetooth Module
+	* Voice Recognition Module
 
 ## 🔌 Pin Configuration
 
@@ -64,7 +65,7 @@ This project simulates a smart home environment where various sensors monitor re
 The STM32 firmware is written in C++ using the Mbed OS API. It utilizes a super-loop architecture with timer-based polling for sensors and interrupts for critical events.
 * `main.cpp`: Core logic, state machine, and sensor polling loop.
 * `DHT11.cpp/h`: Driver for temperature sensor.
-* [cite_start]`lcd_utilities.cpp`: Driver for 16x2 LCD in 4-bit mode[cite: 1].
+* `lcd_utilities.cpp`: Driver for 16x2 LCD in 4-bit mode.
 * `keypad_utilities.cpp`: Driver for scanning the matrix keypad.
 
 ### Mobile App (Flutter)
@@ -85,10 +86,10 @@ The companion app is built with Flutter and communicates via Bluetooth Classic (
     git clone [https://github.com/yourusername/stm32-smart-home.git](https://github.com/yourusername/stm32-smart-home.git)
     ```
 2.  **Flash the Firmware:**
-    * Open the project in your preferred IDE.
-    * Compile `main.cpp` and flash the `.bin` file to the Nucleo board.
+    * Open the project in Mbed Studio.
+    * Compile `main.cpp` and flash the program to the Nucleo Board.
 3.  **Install the App:**
-    * Navigate to the `flutter_app` directory (if applicable).
+    * Navigate to the `intellihome_application` directory.
     * Run `flutter run` on your connected Android device.
 
 ## 🎮 How to Use
