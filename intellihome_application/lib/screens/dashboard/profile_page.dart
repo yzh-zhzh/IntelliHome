@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:intellihome_application/screens/auth/login_page.dart';
 import 'package:intellihome_application/services/auth_service.dart';
-
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -12,13 +12,15 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final AuthService _auth = AuthService();
+  final LocalAuthentication _localAuth = LocalAuthentication();
   
   final _nameCtrl = TextEditingController();
   final _uidCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   
   bool _isLoading = true;
-  bool _isEditing = false;
+  bool _isEditing = false; // Controls the text fields and save button
+  bool _isBiometricEnabled = false;
 
   @override
   void initState() {
@@ -29,10 +31,13 @@ class _ProfilePageState extends State<ProfilePage> {
   Future<void> _loadUserData() async {
     try {
       Map<String, dynamic> data = await _auth.getUserDetails();
+      bool bioEnabled = await _auth.isBiometricEnabled();
+      
       setState(() {
         _nameCtrl.text = data['name'] ?? '';
         _uidCtrl.text = data['userId'] ?? '';
         _emailCtrl.text = data['email'] ?? '';
+        _isBiometricEnabled = bioEnabled;
         _isLoading = false;
       });
     } catch (e) {
@@ -40,6 +45,38 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // --- BIOMETRIC TOGGLE ---
+  Future<void> _toggleBiometrics(bool value) async {
+    if (value) {
+      // Trying to ENABLE: Verify identity first
+      bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
+      if (!canCheckBiometrics) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Biometrics not available on this device.")));
+        return;
+      }
+
+      try {
+        bool didAuthenticate = await _localAuth.authenticate(
+          localizedReason: 'Please authenticate to enable biometric login',
+          options: const AuthenticationOptions(biometricOnly: true),
+        );
+
+        if (didAuthenticate) {
+          await _auth.setBiometricEnabled(true);
+          setState(() => _isBiometricEnabled = true);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Biometric Login Enabled")));
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      }
+    } else {
+      // DISABLING
+      await _auth.setBiometricEnabled(false);
+      setState(() => _isBiometricEnabled = false);
+    }
+  }
+
+  // --- SAVE PROFILE ---
   Future<void> _handleUpdate() async {
     setState(() => _isLoading = true);
     try {
@@ -54,10 +91,10 @@ class _ProfilePageState extends State<ProfilePage> {
         _isEditing = false;
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated Successfully")));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profile Updated Successfully")));
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed: $e")));
+      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Failed: $e")));
     }
   }
 
@@ -81,6 +118,8 @@ class _ProfilePageState extends State<ProfilePage> {
         child: Column(
           children: [
             const SizedBox(height: 20),
+            
+            // --- PROFILE PICTURE & EDIT BUTTON ---
             Stack(
               alignment: Alignment.bottomRight,
               children: [
@@ -89,11 +128,13 @@ class _ProfilePageState extends State<ProfilePage> {
                   backgroundColor: Colors.blue.shade100,
                   child: const Icon(Icons.person, size: 60, color: Colors.blue),
                 ),
+                // THE EDIT BUTTON
                 GestureDetector(
                   onTap: () {
                      setState(() {
                         _isEditing = !_isEditing;
-                        if (!_isEditing) _loadUserData();
+                        // If cancelling edit, reload original data
+                        if (!_isEditing) _loadUserData(); 
                      });
                   },
                   child: Container(
@@ -103,11 +144,16 @@ class _ProfilePageState extends State<ProfilePage> {
                       shape: BoxShape.circle,
                       boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
                     ),
-                    child: Icon(_isEditing ? Icons.close : Icons.edit, size: 20, color: Colors.blue),
+                    child: Icon(
+                      _isEditing ? Icons.close : Icons.edit, 
+                      size: 20, 
+                      color: Colors.blue
+                    ),
                   ),
                 ),
               ],
             ),
+            
             const SizedBox(height: 16),
             
             Text(_nameCtrl.text, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
@@ -115,14 +161,34 @@ class _ProfilePageState extends State<ProfilePage> {
             
             const SizedBox(height: 30),
 
+            // --- TEXT FIELDS ---
             _buildTextField("Full Name", _nameCtrl, Icons.person),
             const SizedBox(height: 16),
             _buildTextField("User ID", _uidCtrl, Icons.badge),
             const SizedBox(height: 16),
             _buildTextField("Email Address", _emailCtrl, Icons.email),
             
+            const SizedBox(height: 20),
+
+            // --- BIOMETRIC SWITCH ---
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade400) // Visible border
+              ),
+              child: SwitchListTile(
+                title: const Text("Enable Biometrics"),
+                subtitle: const Text("Log in with fingerprint/face"),
+                secondary: const Icon(Icons.fingerprint, color: Colors.blue),
+                value: _isBiometricEnabled,
+                onChanged: _toggleBiometrics, // Always active for convenience
+              ),
+            ),
+            
             const SizedBox(height: 30),
 
+            // --- SAVE BUTTON (Only visible when editing) ---
             if (_isEditing)
               ElevatedButton(
                 onPressed: _handleUpdate,
@@ -137,6 +203,7 @@ class _ProfilePageState extends State<ProfilePage> {
             
             const SizedBox(height: 40),
 
+            // --- LOGOUT BUTTON ---
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -160,7 +227,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildTextField(String label, TextEditingController ctrl, IconData icon) {
     return TextField(
       controller: ctrl,
-      enabled: _isEditing,
+      enabled: _isEditing, // Controlled by the edit button
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: Colors.blueGrey),
