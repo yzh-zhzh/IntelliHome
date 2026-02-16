@@ -19,7 +19,7 @@ class _ProfilePageState extends State<ProfilePage> {
   final _emailCtrl = TextEditingController();
   
   bool _isLoading = true;
-  bool _isEditing = false; // Controls the text fields and save button
+  bool _isEditing = false;
   bool _isBiometricEnabled = false;
 
   @override
@@ -45,10 +45,8 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // --- BIOMETRIC TOGGLE ---
   Future<void> _toggleBiometrics(bool value) async {
     if (value) {
-      // Trying to ENABLE: Verify identity first
       bool canCheckBiometrics = await _localAuth.canCheckBiometrics;
       if (!canCheckBiometrics) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Biometrics not available on this device.")));
@@ -70,13 +68,11 @@ class _ProfilePageState extends State<ProfilePage> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
       }
     } else {
-      // DISABLING
       await _auth.setBiometricEnabled(false);
       setState(() => _isBiometricEnabled = false);
     }
   }
 
-  // --- SAVE PROFILE ---
   Future<void> _handleUpdate() async {
     setState(() => _isLoading = true);
     try {
@@ -119,7 +115,6 @@ class _ProfilePageState extends State<ProfilePage> {
           children: [
             const SizedBox(height: 20),
             
-            // --- PROFILE PICTURE & EDIT BUTTON ---
             Stack(
               alignment: Alignment.bottomRight,
               children: [
@@ -128,12 +123,10 @@ class _ProfilePageState extends State<ProfilePage> {
                   backgroundColor: Colors.blue.shade100,
                   child: const Icon(Icons.person, size: 60, color: Colors.blue),
                 ),
-                // THE EDIT BUTTON
                 GestureDetector(
                   onTap: () {
                      setState(() {
                         _isEditing = !_isEditing;
-                        // If cancelling edit, reload original data
                         if (!_isEditing) _loadUserData(); 
                      });
                   },
@@ -161,7 +154,6 @@ class _ProfilePageState extends State<ProfilePage> {
             
             const SizedBox(height: 30),
 
-            // --- TEXT FIELDS ---
             _buildTextField("Full Name", _nameCtrl, Icons.person),
             const SizedBox(height: 16),
             _buildTextField("User ID", _uidCtrl, Icons.badge),
@@ -170,25 +162,23 @@ class _ProfilePageState extends State<ProfilePage> {
             
             const SizedBox(height: 20),
 
-            // --- BIOMETRIC SWITCH ---
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade400) // Visible border
+                border: Border.all(color: Colors.grey.shade400) 
               ),
               child: SwitchListTile(
                 title: const Text("Enable Biometrics"),
                 subtitle: const Text("Log in with fingerprint/face"),
                 secondary: const Icon(Icons.fingerprint, color: Colors.blue),
                 value: _isBiometricEnabled,
-                onChanged: _toggleBiometrics, // Always active for convenience
+                onChanged: _toggleBiometrics, 
               ),
             ),
             
             const SizedBox(height: 30),
 
-            // --- SAVE BUTTON (Only visible when editing) ---
             if (_isEditing)
               ElevatedButton(
                 onPressed: _handleUpdate,
@@ -203,7 +193,6 @@ class _ProfilePageState extends State<ProfilePage> {
             
             const SizedBox(height: 40),
 
-            // --- LOGOUT BUTTON ---
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -227,7 +216,7 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildTextField(String label, TextEditingController ctrl, IconData icon) {
     return TextField(
       controller: ctrl,
-      enabled: _isEditing, // Controlled by the edit button
+      enabled: _isEditing,
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, color: Colors.blueGrey),
