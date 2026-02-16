@@ -268,7 +268,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Welcome back,", style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
-            Text("$userName!", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2A2D3E))),
+            Text("$userName", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2A2D3E))),
           ],
         ),
         const SizedBox(height: 25),

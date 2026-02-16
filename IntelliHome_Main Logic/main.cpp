@@ -40,7 +40,7 @@ Timer echoTimer;
 Timer graceTimer;       
 Timer awayTimer;        
 Timer sensorReadTimer;      
-Timer manualModeTimer;
+// Timer manualModeTimer; // REMOVED: No longer needed
 Timer intruderTimer;
 Timer stabilizationTimer; 
 
@@ -56,12 +56,12 @@ bool isNightTime = false;
 bool isHot = false;
 bool overrideAircon = false;
 bool isRaining = false;
-bool showingPrompt = false; 
+// bool showingPrompt = false; // REMOVED: No longer showing prompt
 bool overrideWindow = false; 
 
-// NEW: Track physical states to prevent constant timer resets
-bool windowState = false; // Closed by default
-bool curtainState = false; // Down by default
+// Track physical states to prevent constant timer resets
+bool windowState = false; 
+bool curtainState = false; 
 
 // --- HELPER FUNCTIONS ---
 
@@ -108,27 +108,25 @@ void lcd_print(const char* str) {
     }
 }
 
-// --- FIXED ACTUATOR FUNCTIONS ---
-// These now check "If already done, do nothing".
-// This prevents 'resetStabilization' from firing constantly in loops.
+// --- ACTUATOR FUNCTIONS ---
 
 void setCurtain(bool up) {
-    if (curtainState == up) return; // Optimization: Don't spam servo or timer
+    if (curtainState == up) return;
     
     resetStabilization(); 
     curtainState = up;
     
     if (up) {
-        printf("[ACT] Curtain UP\n");
-        curtainServo.pulsewidth_us(500); 
-    } else {
-        printf("[ACT] Curtain DOWN\n");
+        printf("[ACT] Curtain UP (Angle 180)\n");
         curtainServo.pulsewidth_us(2500); 
+    } else {
+        printf("[ACT] Curtain DOWN (Angle 0)\n");
+        curtainServo.pulsewidth_us(400);  
     }
 }
 
 void setWindow(bool open) {
-    if (windowState == open) return; // Optimization: Don't spam servo or timer
+    if (windowState == open) return; 
     
     resetStabilization(); 
     windowState = open;
@@ -143,10 +141,10 @@ void setWindow(bool open) {
 }
 
 void setAircon(bool on) {
-    if (acState == on) return; // Optimization: Don't spam timer
+    if (acState == on) return; 
 
     resetStabilization(); 
-    acState = on; // Update state tracking
+    acState = on; 
     
     if (on) {
         Aircon_In1 = 1; Aircon_In2 = 0; 
@@ -201,8 +199,6 @@ void enterSecurityMode() {
     lcd_print("ACCESS GRANTED");
     
     redLed = 0; alarmTriggered = false; 
-    
-    // RE-ARM HOME MODE
     isPersonHome = true; 
     
     potentialIntruder = false; 
@@ -212,26 +208,6 @@ void enterSecurityMode() {
     graceTimer.reset(); graceTimer.start();
     printf(">>> System Unlocked. <<<\n");
     ThisThread::sleep_for(2s); 
-}
-
-void handleInput(char k) {
-    if (k == '1' && overrideAircon && showingPrompt) {
-        manualModeTimer.reset(); 
-        showingPrompt = false;   
-        safe_lcd_clear(); lcd_write_cmd(0x80);
-        lcd_print("MANUAL EXTENDED");
-        ThisThread::sleep_for(1s); 
-    }
-    else if (k == '2') {
-        setAircon(false);
-        overrideAircon = false; 
-        showingPrompt = false;
-        manualModeTimer.stop();
-        manualModeTimer.reset();
-        safe_lcd_clear(); lcd_write_cmd(0x80);
-        lcd_print("AC AUTO MODE");
-        ThisThread::sleep_for(1s);
-    }
 }
 
 // --- MAIN FUNCTION ---
@@ -270,11 +246,9 @@ int main() {
 
         // --- INTRUDER LOGIC ---
         if (currentDist > 0.1f) {
-            
             bool noiseDetected = (stabilizationTimer.elapsed_time() < 2s);
             bool trigger = false;
 
-            // Trigger A: Sudden Jump
             if (!noiseDetected && graceTimer.elapsed_time() > 5s) {
                  if ((lastDist - currentDist) > 100.0f) {
                      trigger = true;
@@ -282,9 +256,7 @@ int main() {
                  }
             }
 
-            // Trigger B: Presence in Away Mode
             if (!isPersonHome && currentDist < 100.0f) {
-                // If the timer is NOT reset constantly, this check will finally PASS.
                 if (!noiseDetected) {
                     trigger = true;
                     printf(">>> TRIGGER: Breach in Away Mode! (Dist: %.1f)\n", currentDist);
@@ -322,28 +294,46 @@ int main() {
             if (awayTimer.elapsed_time() > 3s) isPersonHome = false; 
         } else {
             awayTimer.reset();
-            // No Auto-Disarm.
         }
 
-        char k = check_keypad();
-        if (k != 0) handleInput(k);
+        // REMOVED: Keypad handleInput call since prompt is gone
+        // char k = check_keypad();
+        // if (k != 0) handleInput(k);
 
+        // --- BLUETOOTH COMMANDS ---
         if (btUART.readable()) {
             char c; btUART.read(&c, 1);
-            if(c=='1') { setAircon(true);  overrideAircon = true; manualModeTimer.reset(); manualModeTimer.start(); showingPrompt=false; }
-            if(c=='2') { handleInput('2'); } 
+            // '1': Manual ON
+            if(c=='1') { 
+                setAircon(true);  
+                overrideAircon = true; 
+            }
+            // '2': Manual OFF (Force override to OFF state)
+            if(c=='2') { 
+                setAircon(false); 
+                overrideAircon = true; // Stay in Manual Mode to keep it OFF
+            } 
             if(c=='3') { setWindow(true); overrideWindow = true; }
             if(c=='4') { setWindow(false); overrideWindow = false; }
             if(c=='5') setCurtain(true);
             if(c=='6') setCurtain(false);
         }
 
+        // --- VOICE COMMANDS ---
         if (voiceUART.readable()) {
             char vc; voiceUART.read(&vc, 1);
             if (vc >= '2' && vc <= '7') {
                 switch(vc) {
-                    case '2': setAircon(true); overrideAircon = true; manualModeTimer.reset(); manualModeTimer.start(); showingPrompt=false; break;
-                    case '3': handleInput('2'); break;
+                    // '2': Manual ON
+                    case '2': 
+                        setAircon(true); 
+                        overrideAircon = true; 
+                        break;
+                    // '3': Manual OFF (Force override to OFF state)
+                    case '3': 
+                        setAircon(false); 
+                        overrideAircon = true; 
+                        break;
                     case '4': setCurtain(true); break;
                     case '5': setCurtain(false); break;
                     case '6': setWindow(true); overrideWindow = true; break;
@@ -371,8 +361,7 @@ int main() {
 
             blueLed = 1; ThisThread::sleep_for(100ms); blueLed = 0;
 
-            // --- FIXED RAIN LOGIC ---
-            // If 0.00 is displayed when Dry, then we must trigger "Rain" only if > 0.6f.
+            // --- AUTO LOGIC ---
             if (rainVal > 0.6f) { 
                 if (!isRaining) { 
                     isRaining = true; 
@@ -401,13 +390,12 @@ int main() {
                 if (!overrideWindow) setWindow(false); 
             }
 
-            if (overrideAircon && manualModeTimer.elapsed_time() > 20s) {
-                showingPrompt = true; safe_lcd_clear(); 
-                lcd_write_cmd(0x80); lcd_print("Keep Manual?");
-                lcd_write_cmd(0xC0); lcd_print("1: YES  2: NO");
-            } else if (overrideAircon && !showingPrompt) {
-                safe_lcd_clear(); lcd_write_cmd(0x80); lcd_print("MANUAL AC ON");
-            } else if (!overrideAircon) {
+            // --- SIMPLIFIED LCD LOGIC (No Prompt) ---
+            if (overrideAircon) {
+                safe_lcd_clear(); lcd_write_cmd(0x80); 
+                if (acState) lcd_print("MANUAL AC ON");
+                else lcd_print("MANUAL AC OFF");
+            } else {
                 safe_lcd_clear(); lcd_write_cmd(0x80);
                 if (isPersonHome) {
                     if (isNightTime) { lcd_print("NIGHT MODE"); blueLed.write(0); }
