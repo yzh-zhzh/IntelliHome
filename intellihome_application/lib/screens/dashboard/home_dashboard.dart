@@ -34,7 +34,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   
   bool isPersonHome = true;
   bool isAlarm = false;
-  bool isAcOn = false; // Tracks current status received from Device
+  bool isAcOn = false; 
 
   List<FlSpot> tempHistory = [];
   List<FlSpot> humHistory = [];
@@ -158,14 +158,50 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
 
     if (selectedDevice == null) return;
 
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false, 
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: const Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("Connecting...", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
     try {
       connection = await BluetoothConnection.toAddress(selectedDevice.address);
       setState(() => isConnected = true);
       connection!.input!.listen(_onDataReceived).onDone(() {
         if (mounted) setState(() => isConnected = false);
       });
+      
+      if (mounted) {
+        Navigator.pop(context); // Close the dialog
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text("Connected to ${selectedDevice.name}"), backgroundColor: Colors.green)
+        );
+      }
+
     } catch (e) {
-      print("Connection Error: $e");
+      if (mounted) {
+        Navigator.pop(context);
+        print("Connection Error: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Connection Failed: $e"), backgroundColor: Colors.red)
+        );
+      }
     }
   }
 
@@ -294,24 +330,21 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
           mainAxisSpacing: 15, 
           childAspectRatio: 1.5, 
           children: [
-            // --- UPDATED BUTTONS ---
             
-            // 1. Manual Toggle (ON/OFF)
             _buildActionBtn(
               isAcOn ? "AC STOP" : "AC START", 
               "Manual Override", 
               Icons.power_settings_new, 
               isAcOn ? Colors.red.shade300 : Colors.green, 
-              isAcOn ? '2' : '1' // Sends '2' (Force OFF) if ON, '1' (Force ON) if OFF
+              isAcOn ? '2' : '1' 
             ),
 
-            // 2. Auto Mode (New)
             _buildActionBtn(
               "AC AUTO", 
               "Sensor Control", 
               Icons.hdr_auto, 
               Colors.blue, 
-              '8' // Sends '8' to reset override
+              '8' 
             ),
 
             _buildActionBtn("Window", "OPEN", Icons.window, Colors.green, '3'),
@@ -324,7 +357,6 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     );
   }
 
-  // ... (Keep existing _buildAnalytics, _buildSecurityStatusCard, etc.) ...
   Widget _buildAnalytics() {
     if (isLoadingCharts) {
       return const Center(child: CircularProgressIndicator());
