@@ -7,7 +7,6 @@
 
 using namespace std::chrono;
 
-// --- HARDWARE DEFINITIONS ---
 PwmOut Aircon_En(PB_0);    
 DigitalOut Aircon_In1(PC_1);  
 DigitalOut Aircon_In2(PC_2);  
@@ -26,16 +25,14 @@ DigitalOut ultrasonicTrigger(PA_1);
 InterruptIn ultrasonicEcho(PA_6);   
 
 DigitalOut buzzer(PC_0);      
-DigitalOut redLed(PB_1);      
-DigitalOut greenLed(PB_2);    
-DigitalOut blueLed(PC_3);     
 
-// REMOVED: DigitalIn keypadDataReady(PB_13); -> Conflicts with Keypad Col1
+DigitalOut redLed(PB_1);
+DigitalOut blueLed(PB_2); 
+DigitalOut greenLed(PC_3);  
 
 UnbufferedSerial btUART(PB_6, PB_7);  
 UnbufferedSerial voiceUART(PC_10, PC_11); 
 
-// --- TIMERS ---
 Timer echoTimer;
 Timer graceTimer;       
 Timer awayTimer;        
@@ -44,7 +41,6 @@ Timer intruderTimer;
 Timer stabilizationTimer; 
 Timer alarmReportTimer; 
 
-// --- STATE VARIABLES ---
 bool potentialIntruder = false; 
 volatile float currentDist = 0.0f;
 float lastDist = 0.0f; 
@@ -52,7 +48,7 @@ volatile bool alarmTriggered = false;
 
 bool isPersonHome = true; 
 bool acState = false;
-bool isNightTime = false; 
+bool isNightMode = false; 
 bool isHot = false;
 bool overrideAircon = false;
 bool isRaining = false;
@@ -61,10 +57,8 @@ bool overrideWindow = false;
 bool windowState = false; 
 bool curtainState = false; 
 
-// --- SECURITY PIN ---
 char securityPin[4] = {'1', '2', '3', '4'};
 
-// ... (Helper functions) ...
 
 void resetStabilization() {
     stabilizationTimer.reset();
@@ -85,7 +79,6 @@ void echo_fall() {
 }
 
 char check_keypad() {
-    // Direct call to getkey() is better than checking a single column pin
     return getkey(); 
 }
 
@@ -125,14 +118,26 @@ void setAircon(bool on) {
 }
 
 void setRoomLight(bool on) {
-    greenLed = on ? 1 : 0;
+    if (on) {
+        blueLed = 1;
+        greenLed = 0;
+        redLed = 0;
+    } else {
+        blueLed = 0;
+        greenLed = 0;
+        redLed = 0;
+    }
 }
 
 void unlockSystem() {
     safe_lcd_clear(); lcd_write_cmd(0x80);
     lcd_print("ACCESS GRANTED");
     
-    redLed = 0; alarmTriggered = false; 
+    redLed = 0; 
+    
+    if (isNightMode) blueLed = 1;
+    
+    alarmTriggered = false; 
     isPersonHome = true; 
     potentialIntruder = false; 
     intruderTimer.stop();
@@ -143,12 +148,13 @@ void unlockSystem() {
     ThisThread::sleep_for(2s); 
 }
 
-// --- FIXED SECURITY MODE ---
 void enterSecurityMode() {
     printf("\n>>> INTRUDER DETECTED! <<<\n");
     setAircon(false);
-    setRoomLight(false);
-    redLed = 1; blueLed = 0;
+    
+    redLed = 1;
+    blueLed = 0;
+    greenLed = 0;
     
     safe_lcd_clear(); lcd_write_cmd(0x80);
     lcd_print("ALARM! ENTER PIN");
@@ -161,47 +167,34 @@ void enterSecurityMode() {
 
     alarmReportTimer.reset();
     alarmReportTimer.start();
-    
-    // NEW: Timer for non-blocking LED blinking
-    Timer ledBlinkTimer;
-    ledBlinkTimer.start();
 
-    // Loop until unlocked
     while (!accessGranted) {
-        
-        // 1. CHECK BLUETOOTH FOR 'U' (UNLOCK) COMMAND
         if (btUART.readable()) {
             char c; btUART.read(&c, 1);
             if (c == 'U') {
                 unlockSystem();
-                return; // Exit function immediately
+                return; 
             }
         }
 
-        // 2. PERIODICALLY UPDATE APP DURING ALARM
         if (alarmReportTimer.elapsed_time() > 2s) {
             alarmReportTimer.reset();
             char buffer[60];
             int len = sprintf(buffer, "0.0,0.0,0.0,0,%.1f,%d,1,%d\r\n", 
                   currentDist, isPersonHome, acState);
             btUART.write(buffer, len); 
-            printf("[ALARM] Status Sent to App\n");
         }
 
-        // 3. CHECK KEYPAD (Directly)
-        // We removed the 'keypadDataReady' check because it was blocking other columns
         char key = getkey(); 
-        
         if (key != 0) {
             inputPass[keyIndex] = key;
             buzzer = 1; ThisThread::sleep_for(50ms); buzzer = 0;
             
-            lcd_write_cmd(0xC0 + keyIndex); // Move cursor
+            lcd_write_cmd(0xC0 + keyIndex); 
             lcd_write_data('*');
             
             keyIndex++;
 
-            // If 4 digits entered, check PIN
             if (keyIndex == 4) {
                 if (inputPass[0] == securityPin[0] && inputPass[1] == securityPin[1] && 
                     inputPass[2] == securityPin[2] && inputPass[3] == securityPin[3]) {
@@ -212,25 +205,13 @@ void enterSecurityMode() {
                     lcd_print("WRONG PIN!");
                     buzzer = 1; ThisThread::sleep_for(200ms); buzzer = 0;
                     ThisThread::sleep_for(1s);
-                    
-                    // Reset UI
                     safe_lcd_clear(); lcd_write_cmd(0x80);
                     lcd_print("ALARM! ENTER PIN");
-                    keyIndex = 0; // Reset index to start over
+                    keyIndex = 0; 
                 }
             }
-            // Small debounce delay (OK here because key was pressed)
             ThisThread::sleep_for(200ms); 
         }
-        
-        // 4. NON-BLOCKING LED BLINK
-        // Instead of sleep_for(100ms), we check the timer
-        if (ledBlinkTimer.elapsed_time() > 100ms) {
-            redLed = !redLed;
-            ledBlinkTimer.reset();
-        }
-        
-        // Tiny sleep to prevent CPU hogging, but fast enough to catch keys
         ThisThread::sleep_for(20ms); 
     }
 }
@@ -246,7 +227,7 @@ int main() {
     windowServo.period_ms(20);  windowServo.pulsewidth_us(1500); 
     Aircon_En.write(0.0f);  
 
-    Aircon_En = 0; blueLed = 0; redLed = 0; greenLed = 0;
+    redLed = 0; greenLed = 0; blueLed = 0;
 
     ultrasonicEcho.rise(&echo_rise);
     ultrasonicEcho.fall(&echo_fall);
@@ -267,29 +248,19 @@ int main() {
         ultrasonicTrigger = 0;
         ThisThread::sleep_for(30ms); 
 
-        // ... (Intruder Logic - Same as before) ...
         if (currentDist > 0.1f) {
             bool noiseDetected = (stabilizationTimer.elapsed_time() < 2s);
             bool trigger = false;
-
             if (!noiseDetected && graceTimer.elapsed_time() > 5s) {
-                 if ((lastDist - currentDist) > 100.0f) {
-                     trigger = true;
-                 }
+                 if ((lastDist - currentDist) > 100.0f) trigger = true;
             }
-
             if (!isPersonHome && currentDist < 100.0f) {
-                if (!noiseDetected) {
-                    trigger = true;
-                }
+                if (!noiseDetected) trigger = true;
             }
-            
             if (trigger && !potentialIntruder) {
                 potentialIntruder = true;
-                intruderTimer.reset();
-                intruderTimer.start();
+                intruderTimer.reset(); intruderTimer.start();
             }
-
             if (potentialIntruder) {
                 if (currentDist < 100.0f) {
                     if (intruderTimer.elapsed_time() > 2s) {
@@ -301,55 +272,39 @@ int main() {
                     }
                 } else {
                     potentialIntruder = false;
-                    intruderTimer.stop();
-                    intruderTimer.reset();
+                    intruderTimer.stop(); intruderTimer.reset();
                 }
             }
             if (!potentialIntruder) lastDist = currentDist;
         }
 
-        // ... (Away Logic - Same as before) ...
         if (currentDist > 100.0f) {
             if (awayTimer.elapsed_time() > 3s) isPersonHome = false; 
         } else {
             awayTimer.reset();
         }
 
-        // --- BLUETOOTH COMMANDS ---
         if (btUART.readable()) {
-            char c; 
-            btUART.read(&c, 1);
-            
-            printf("Received Bluetooth Char: %c (ASCII: %d)\n", c, c); 
-
+            char c; btUART.read(&c, 1);
             if(c=='1') { setAircon(true); overrideAircon = true; } 
             if(c=='2') { setAircon(false); overrideAircon = true; } 
             if(c=='8') { overrideAircon = false; }
-
             if(c=='3') { setWindow(true); overrideWindow = true; }
             if(c=='4') { setWindow(false); overrideWindow = false; }
             if(c=='5') setCurtain(true);
             if(c=='6') setCurtain(false);
-
             if(c=='P') {
                  safe_lcd_clear(); lcd_write_cmd(0x80); lcd_print("Updating PIN...");
                  for(int i=0; i<4; i++) {
                      int timeout = 0;
-                     while(!btUART.readable() && timeout < 500) { 
-                         ThisThread::sleep_for(10ms);
-                         timeout++;
-                     }
-                     if(btUART.readable()) {
-                         char d; btUART.read(&d, 1);
-                         securityPin[i] = d;
-                     }
+                     while(!btUART.readable() && timeout < 500) { ThisThread::sleep_for(10ms); timeout++; }
+                     if(btUART.readable()) { char d; btUART.read(&d, 1); securityPin[i] = d; }
                  }
                  safe_lcd_clear(); lcd_write_cmd(0x80); lcd_print("PIN Updated!");
                  ThisThread::sleep_for(2s);
             }
         }
 
-        // ... (Voice Logic - Same as before) ...
         if (voiceUART.readable()) {
             char vc; voiceUART.read(&vc, 1);
             if (vc >= '2' && vc <= '8') {
@@ -365,7 +320,6 @@ int main() {
             }
         }
 
-        // --- SENSOR READ ---
         if (sensorReadTimer.elapsed_time() > 2s) {
             sensorReadTimer.reset();
             
@@ -373,45 +327,43 @@ int main() {
             dht11.readTemperatureHumidity(t, h); 
             float temp = (float)t;
             float humidity = (float)h;
-
             float lightVal = ldr.read();           
             float rainVal = rainSensor.read();
             float dist = currentDist;
             
-            // Format: Temp, Hum, Rain, IsRaining, Dist, IsHome, IsAlarm, AC_State
             char buffer[60];
             int len = sprintf(buffer, "%.1f,%.1f,%.2f,%d,%.1f,%d,%d,%d\r\n", 
                   temp, humidity, rainVal, isRaining, dist, 
                   isPersonHome, alarmTriggered, acState);
             btUART.write(buffer, len); 
 
-            blueLed = 1; ThisThread::sleep_for(100ms); blueLed = 0;
-
-            // ... (Auto Logic - Same as before) ...
             if (rainVal > 0.6f) { 
-                if (!isRaining) { 
-                    isRaining = true; 
-                    setWindow(false); 
-                    overrideWindow = false; 
-                }
-            } else {
-                isRaining = false;
-            }
+                if (!isRaining) { isRaining = true; setWindow(false); overrideWindow = false; }
+            } else { isRaining = false; }
 
             if (isPersonHome && !alarmTriggered) {
-                if (lightVal > 0.7f && !isNightTime) { setCurtain(false); setRoomLight(true); isNightTime = true; } 
-                else if (lightVal < 0.4f && isNightTime) { setCurtain(true); setRoomLight(false); isNightTime = false; }
-
-                if (!overrideAircon) {
-                    if (temp > 28.0f) { 
-                        setAircon(true); 
-                        if (!isHot && !overrideWindow) { setWindow(false); isHot = true; } 
-                    } else { 
-                        setAircon(false); isHot = false; 
+                if (lightVal < 0.7f) { 
+                    if (isNightMode) { 
+                        setCurtain(false); 
+                        setRoomLight(false); 
+                        isNightMode = false; 
+                    }
+                } 
+                else if (lightVal > 0.4f) { 
+                    if (!isNightMode) { 
+                        setCurtain(true); 
+                        setRoomLight(true); 
+                        isNightMode = true; 
                     }
                 }
+
+                if (!overrideAircon) {
+                    if (temp > 28.0f) { setAircon(true); if (!isHot && !overrideWindow) { setWindow(false); isHot = true; } } 
+                    else { setAircon(false); isHot = false; }
+                }
             } else if (!isPersonHome) {
-                setAircon(false); setRoomLight(false); 
+                setAircon(false); 
+                setRoomLight(false); 
                 if (!overrideWindow) setWindow(false); 
             }
 
@@ -422,11 +374,13 @@ int main() {
             } else {
                 safe_lcd_clear(); lcd_write_cmd(0x80);
                 if (isPersonHome) {
-                    if (isNightTime) { lcd_print("NIGHT MODE"); blueLed.write(0); }
-                    else { lcd_print("DAY MODE"); blueLed.write(1); }
+                    if (isNightMode) { 
+                        lcd_print("NIGHT MODE"); 
+                    } else { 
+                        lcd_print("DAY MODE"); 
+                    }
                 } else { lcd_print("AWAY - ECO"); }
             }
         }
-        blueLed = !blueLed; 
     }
 }
