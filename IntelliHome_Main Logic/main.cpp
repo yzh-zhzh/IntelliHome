@@ -1,3 +1,4 @@
+// ... (Keep your includes and defines same as before) ...
 #undef __ARM_FP
 #include "mbed.h"
 #include "DHT11.h"
@@ -60,7 +61,10 @@ bool overrideWindow = false;
 bool windowState = false; 
 bool curtainState = false; 
 
-// --- HELPER FUNCTIONS ---
+// --- SECURITY PIN ---
+char securityPin[4] = {'1', '2', '3', '4'};
+
+// ... (Keep helper functions: resetStabilization, echo_rise, echo_fall, check_keypad, get_key_blocking, safe_lcd_clear, lcd_print, setCurtain, setWindow, setAircon, setRoomLight, enterSecurityMode SAME AS BEFORE) ...
 
 void resetStabilization() {
     stabilizationTimer.reset();
@@ -104,8 +108,6 @@ void lcd_print(const char* str) {
         lcd_write_data(str[i]);
     }
 }
-
-// --- ACTUATOR FUNCTIONS ---
 
 void setCurtain(bool up) {
     if (curtainState == up) return;
@@ -177,7 +179,8 @@ void enterSecurityMode() {
             ThisThread::sleep_for(200ms); 
         }
 
-        if (inputPass[0] == '1' && inputPass[1] == '2' && inputPass[2] == '3' && inputPass[3] == '4') {
+        if (inputPass[0] == securityPin[0] && inputPass[1] == securityPin[1] && 
+            inputPass[2] == securityPin[2] && inputPass[3] == securityPin[3]) {
             accessGranted = true;
         } else {
             safe_lcd_clear(); lcd_write_cmd(0x80);
@@ -201,8 +204,6 @@ void enterSecurityMode() {
     printf(">>> System Unlocked. <<<\n");
     ThisThread::sleep_for(2s); 
 }
-
-// --- MAIN FUNCTION ---
 
 int main() {
     lcd_init();
@@ -236,7 +237,7 @@ int main() {
         ultrasonicTrigger = 0;
         ThisThread::sleep_for(30ms); 
 
-        // --- INTRUDER LOGIC ---
+        // --- INTRUDER & AWAY LOGIC ---
         if (currentDist > 0.1f) {
             bool noiseDetected = (stabilizationTimer.elapsed_time() < 2s);
             bool trigger = false;
@@ -281,7 +282,6 @@ int main() {
             if (!potentialIntruder) lastDist = currentDist;
         }
 
-        // --- AWAY LOGIC ---
         if (currentDist > 100.0f) {
             if (awayTimer.elapsed_time() > 3s) isPersonHome = false; 
         } else {
@@ -290,23 +290,48 @@ int main() {
 
         // --- BLUETOOTH COMMANDS ---
         if (btUART.readable()) {
-            char c; btUART.read(&c, 1);
-            if(c=='1') { setAircon(true); overrideAircon = true; } // Manual ON
-            if(c=='2') { setAircon(false); overrideAircon = true; } // Manual OFF
+            char c; 
+            btUART.read(&c, 1);
             
-            // --- NEW: AUTO MODE COMMAND ---
-            if(c=='8') { overrideAircon = false; } 
+            printf("Received Bluetooth Char: %c (ASCII: %d)\n", c, c); 
+
+            if(c=='1') { setAircon(true); overrideAircon = true; } 
+            if(c=='2') { setAircon(false); overrideAircon = true; } 
+            if(c=='8') { overrideAircon = false; }
 
             if(c=='3') { setWindow(true); overrideWindow = true; }
             if(c=='4') { setWindow(false); overrideWindow = false; }
             if(c=='5') setCurtain(true);
             if(c=='6') setCurtain(false);
+
+            if(c=='P') {
+                 printf("[SYS] Updating PIN...\n");
+                 safe_lcd_clear(); lcd_write_cmd(0x80); lcd_print("Updating PIN...");
+                 
+                 for(int i=0; i<4; i++) {
+                     int timeout = 0;
+                     // Increase timeout slightly for reliability
+                     while(!btUART.readable() && timeout < 500) { 
+                         ThisThread::sleep_for(10ms);
+                         timeout++;
+                     }
+                     
+                     if(btUART.readable()) {
+                         char d; btUART.read(&d, 1);
+                         securityPin[i] = d;
+                     }
+                 }
+                 
+                 printf("[SYS] New PIN: %c%c%c%c\n", securityPin[0], securityPin[1], securityPin[2], securityPin[3]);
+                 
+                 safe_lcd_clear(); lcd_write_cmd(0x80); lcd_print("PIN Updated!");
+                 ThisThread::sleep_for(2s);
+            }
         }
 
-        // --- VOICE COMMANDS ---
+        // ... Voice UART Logic ...
         if (voiceUART.readable()) {
             char vc; voiceUART.read(&vc, 1);
-            // Assuming voice module can send '8' or mapped character
             if (vc >= '2' && vc <= '8') {
                 switch(vc) {
                     case '2': setAircon(true); overrideAircon = true; break;
@@ -315,16 +340,21 @@ int main() {
                     case '5': setCurtain(false); break;
                     case '6': setWindow(true); overrideWindow = true; break;
                     case '7': setWindow(false); overrideWindow = false; break;
-                    case '8': overrideAircon = false; break; // Voice Auto
+                    case '8': overrideAircon = false; break; 
                 }
             }
         }
 
+        // --- SENSOR READ (OPTIMIZED) ---
         if (sensorReadTimer.elapsed_time() > 2s) {
             sensorReadTimer.reset();
             
-            float temp = dht11.readTemperature();
-            float humidity = dht11.readHumidity();
+            // OPTIMIZATION: Read both in one go to save time
+            int t = 0, h = 0;
+            dht11.readTemperatureHumidity(t, h); // Reads once, no internal sleep
+            float temp = (float)t;
+            float humidity = (float)h;
+
             float lightVal = ldr.read();           
             float rainVal = rainSensor.read();
             float dist = currentDist;
@@ -339,7 +369,7 @@ int main() {
 
             blueLed = 1; ThisThread::sleep_for(100ms); blueLed = 0;
 
-            // --- AUTO LOGIC ---
+            // ... (Auto Logic) ...
             if (rainVal > 0.6f) { 
                 if (!isRaining) { 
                     isRaining = true; 
@@ -368,7 +398,6 @@ int main() {
                 if (!overrideWindow) setWindow(false); 
             }
 
-            // --- LCD DISPLAY UPDATE ---
             if (overrideAircon) {
                 safe_lcd_clear(); lcd_write_cmd(0x80); 
                 if (acState) lcd_print("MANUAL AC ON");

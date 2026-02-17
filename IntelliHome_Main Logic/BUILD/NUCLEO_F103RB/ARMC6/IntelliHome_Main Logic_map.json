@@ -2,7 +2,7 @@
     {
         "module": "DHT11.o",
         "size": {
-            ".text": 520,
+            ".text": 502,
             ".data": 0,
             ".bss": 0,
             ".text-delta": 0,
@@ -68,10 +68,10 @@
     {
         "module": "lcd_utilities.o",
         "size": {
-            ".text": 528,
+            ".text": 460,
             ".data": 0,
             ".bss": 104,
-            ".text-delta": 0,
+            ".text-delta": -68,
             ".data-delta": 0,
             ".bss-delta": 0
         }
@@ -79,10 +79,10 @@
     {
         "module": "main.o",
         "size": {
-            ".text": 4446,
-            ".data": 1,
+            ".text": 4783,
+            ".data": 5,
             ".bss": 1270,
-            ".text-delta": 36,
+            ".text-delta": 0,
             ".data-delta": 0,
             ".bss-delta": 0
         }
@@ -144,10 +144,10 @@
     },
     {
         "summary": {
-            "static_ram": 7090,
+            "static_ram": 7094,
             "static_ram_delta": 0,
-            "total_flash": 37791,
-            "total_flash_delta": 36
+            "total_flash": 38046,
+            "total_flash_delta": -68
         }
     }
 ]

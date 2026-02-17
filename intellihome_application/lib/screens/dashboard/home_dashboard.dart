@@ -188,7 +188,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
       });
       
       if (mounted) {
-        Navigator.pop(context); // Close the dialog
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
            SnackBar(content: Text("Connected to ${selectedDevice.name}"), backgroundColor: Colors.green)
         );
@@ -246,6 +246,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   }
 
   void _sendCommand(String cmd) async {
+    print("DEBUG: Sending Bluetooth Command: $cmd");
     if (connection != null && isConnected) {
       connection!.output.add(ascii.encode(cmd));
       await connection!.output.allSent;
@@ -279,7 +280,10 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
         children: [
           _buildDashboard(),
           _buildAnalytics(),
-          const ProfilePage(),
+          ProfilePage(
+            isConnected: isConnected,
+            onSendCommand: _sendCommand
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
