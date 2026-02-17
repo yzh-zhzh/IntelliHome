@@ -34,7 +34,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   
   bool isPersonHome = true;
   bool isAlarm = false;
-  bool isAcOn = false;
+  bool isAcOn = false; // Tracks current status received from Device
 
   List<FlSpot> tempHistory = [];
   List<FlSpot> humHistory = [];
@@ -191,7 +191,6 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
       double t = double.tryParse(values[0]) ?? 0.0;
       double h = double.tryParse(values[1]) ?? 0.0;
       
-      // Update UI state
       setState(() {
         temp = t;
         humidity = h;
@@ -204,7 +203,6 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
 
       if (isSyncing) {
         _syncBuffer.add({'temp': t, 'humidity': h});
-        
         _syncTimeoutTimer?.cancel();
         _syncTimeoutTimer = Timer(const Duration(seconds: 2), _finalizeSync);
       }
@@ -296,8 +294,26 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
           mainAxisSpacing: 15, 
           childAspectRatio: 1.5, 
           children: [
-            _buildActionBtn("AC", isAcOn ? "ON" : "OFF", Icons.ac_unit, isAcOn ? Colors.blue : Colors.grey, '1'),
-            _buildActionBtn("AC OFF", "AUTO AC Mode", Icons.power_off, Colors.red.shade300, '2'),
+            // --- UPDATED BUTTONS ---
+            
+            // 1. Manual Toggle (ON/OFF)
+            _buildActionBtn(
+              isAcOn ? "AC STOP" : "AC START", 
+              "Manual Override", 
+              Icons.power_settings_new, 
+              isAcOn ? Colors.red.shade300 : Colors.green, 
+              isAcOn ? '2' : '1' // Sends '2' (Force OFF) if ON, '1' (Force ON) if OFF
+            ),
+
+            // 2. Auto Mode (New)
+            _buildActionBtn(
+              "AC AUTO", 
+              "Sensor Control", 
+              Icons.hdr_auto, 
+              Colors.blue, 
+              '8' // Sends '8' to reset override
+            ),
+
             _buildActionBtn("Window", "OPEN", Icons.window, Colors.green, '3'),
             _buildActionBtn("Window", "CLOSE", Icons.sensor_window, Colors.brown, '4'),
             _buildActionBtn("Curtain", "UP", Icons.vertical_align_top, Colors.purple, '5'),
@@ -308,6 +324,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     );
   }
 
+  // ... (Keep existing _buildAnalytics, _buildSecurityStatusCard, etc.) ...
   Widget _buildAnalytics() {
     if (isLoadingCharts) {
       return const Center(child: CircularProgressIndicator());

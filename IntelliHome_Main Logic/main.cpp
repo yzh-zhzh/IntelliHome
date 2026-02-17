@@ -40,7 +40,6 @@ Timer echoTimer;
 Timer graceTimer;       
 Timer awayTimer;        
 Timer sensorReadTimer;      
-// Timer manualModeTimer; // REMOVED: No longer needed
 Timer intruderTimer;
 Timer stabilizationTimer; 
 
@@ -56,10 +55,8 @@ bool isNightTime = false;
 bool isHot = false;
 bool overrideAircon = false;
 bool isRaining = false;
-// bool showingPrompt = false; // REMOVED: No longer showing prompt
 bool overrideWindow = false; 
 
-// Track physical states to prevent constant timer resets
 bool windowState = false; 
 bool curtainState = false; 
 
@@ -112,7 +109,6 @@ void lcd_print(const char* str) {
 
 void setCurtain(bool up) {
     if (curtainState == up) return;
-    
     resetStabilization(); 
     curtainState = up;
     
@@ -127,7 +123,6 @@ void setCurtain(bool up) {
 
 void setWindow(bool open) {
     if (windowState == open) return; 
-    
     resetStabilization(); 
     windowState = open;
     
@@ -142,7 +137,6 @@ void setWindow(bool open) {
 
 void setAircon(bool on) {
     if (acState == on) return; 
-
     resetStabilization(); 
     acState = on; 
     
@@ -200,11 +194,9 @@ void enterSecurityMode() {
     
     redLed = 0; alarmTriggered = false; 
     isPersonHome = true; 
-    
     potentialIntruder = false; 
     intruderTimer.stop();
     intruderTimer.reset();
-    
     graceTimer.reset(); graceTimer.start();
     printf(">>> System Unlocked. <<<\n");
     ThisThread::sleep_for(2s); 
@@ -296,23 +288,15 @@ int main() {
             awayTimer.reset();
         }
 
-        // REMOVED: Keypad handleInput call since prompt is gone
-        // char k = check_keypad();
-        // if (k != 0) handleInput(k);
-
         // --- BLUETOOTH COMMANDS ---
         if (btUART.readable()) {
             char c; btUART.read(&c, 1);
-            // '1': Manual ON
-            if(c=='1') { 
-                setAircon(true);  
-                overrideAircon = true; 
-            }
-            // '2': Manual OFF (Force override to OFF state)
-            if(c=='2') { 
-                setAircon(false); 
-                overrideAircon = true; // Stay in Manual Mode to keep it OFF
-            } 
+            if(c=='1') { setAircon(true); overrideAircon = true; } // Manual ON
+            if(c=='2') { setAircon(false); overrideAircon = true; } // Manual OFF
+            
+            // --- NEW: AUTO MODE COMMAND ---
+            if(c=='8') { overrideAircon = false; } 
+
             if(c=='3') { setWindow(true); overrideWindow = true; }
             if(c=='4') { setWindow(false); overrideWindow = false; }
             if(c=='5') setCurtain(true);
@@ -322,22 +306,16 @@ int main() {
         // --- VOICE COMMANDS ---
         if (voiceUART.readable()) {
             char vc; voiceUART.read(&vc, 1);
-            if (vc >= '2' && vc <= '7') {
+            // Assuming voice module can send '8' or mapped character
+            if (vc >= '2' && vc <= '8') {
                 switch(vc) {
-                    // '2': Manual ON
-                    case '2': 
-                        setAircon(true); 
-                        overrideAircon = true; 
-                        break;
-                    // '3': Manual OFF (Force override to OFF state)
-                    case '3': 
-                        setAircon(false); 
-                        overrideAircon = true; 
-                        break;
+                    case '2': setAircon(true); overrideAircon = true; break;
+                    case '3': setAircon(false); overrideAircon = true; break;
                     case '4': setCurtain(true); break;
                     case '5': setCurtain(false); break;
                     case '6': setWindow(true); overrideWindow = true; break;
                     case '7': setWindow(false); overrideWindow = false; break;
+                    case '8': overrideAircon = false; break; // Voice Auto
                 }
             }
         }
@@ -390,7 +368,7 @@ int main() {
                 if (!overrideWindow) setWindow(false); 
             }
 
-            // --- SIMPLIFIED LCD LOGIC (No Prompt) ---
+            // --- LCD DISPLAY UPDATE ---
             if (overrideAircon) {
                 safe_lcd_clear(); lcd_write_cmd(0x80); 
                 if (acState) lcd_print("MANUAL AC ON");
