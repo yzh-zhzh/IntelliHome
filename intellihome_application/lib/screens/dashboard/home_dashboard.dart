@@ -472,33 +472,60 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
                 BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
               ],
             ),
-            child: Row(
+            child: Column(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 32, color: iconColor),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        statusText, 
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: iconColor)
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.5),
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "$subText • Dist: ${dist.toStringAsFixed(1)} cm",
-                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                      child: Icon(icon, size: 32, color: iconColor),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            statusText, 
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: iconColor)
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "$subText • Dist: ${dist.toStringAsFixed(1)} cm",
+                            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+                
+                if (isAlarm) ...[
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        _sendCommand('U'); 
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Sending Unlock Command..."))
+                        );
+                      },
+                      icon: const Icon(Icons.lock_open),
+                      label: const Text("UNLOCK SYSTEM"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

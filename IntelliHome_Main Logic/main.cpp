@@ -1,4 +1,3 @@
-// ... (Keep your includes and defines same as before) ...
 #undef __ARM_FP
 #include "mbed.h"
 #include "DHT11.h"
@@ -31,7 +30,7 @@ DigitalOut redLed(PB_1);
 DigitalOut greenLed(PB_2);    
 DigitalOut blueLed(PC_3);     
 
-DigitalIn keypadDataReady(PB_13); 
+// REMOVED: DigitalIn keypadDataReady(PB_13); -> Conflicts with Keypad Col1
 
 UnbufferedSerial btUART(PB_6, PB_7);  
 UnbufferedSerial voiceUART(PC_10, PC_11); 
@@ -43,6 +42,7 @@ Timer awayTimer;
 Timer sensorReadTimer;      
 Timer intruderTimer;
 Timer stabilizationTimer; 
+Timer alarmReportTimer; 
 
 // --- STATE VARIABLES ---
 bool potentialIntruder = false; 
@@ -64,7 +64,7 @@ bool curtainState = false;
 // --- SECURITY PIN ---
 char securityPin[4] = {'1', '2', '3', '4'};
 
-// ... (Keep helper functions: resetStabilization, echo_rise, echo_fall, check_keypad, get_key_blocking, safe_lcd_clear, lcd_print, setCurtain, setWindow, setAircon, setRoomLight, enterSecurityMode SAME AS BEFORE) ...
+// ... (Helper functions) ...
 
 void resetStabilization() {
     stabilizationTimer.reset();
@@ -85,17 +85,8 @@ void echo_fall() {
 }
 
 char check_keypad() {
-    if (keypadDataReady == 1) return getkey(); 
-    return 0;
-}
-
-char get_key_blocking() {
-    char key = 0;
-    while (key == 0) {
-        key = getkey(); 
-        wait_us(10000); 
-    }
-    return key;
+    // Direct call to getkey() is better than checking a single column pin
+    return getkey(); 
 }
 
 void safe_lcd_clear() {
@@ -113,49 +104,46 @@ void setCurtain(bool up) {
     if (curtainState == up) return;
     resetStabilization(); 
     curtainState = up;
-    
-    if (up) {
-        printf("[ACT] Curtain UP (Angle 180)\n");
-        curtainServo.pulsewidth_us(2500); 
-    } else {
-        printf("[ACT] Curtain DOWN (Angle 0)\n");
-        curtainServo.pulsewidth_us(400);  
-    }
+    if (up) curtainServo.pulsewidth_us(2500); 
+    else curtainServo.pulsewidth_us(400);  
 }
 
 void setWindow(bool open) {
     if (windowState == open) return; 
     resetStabilization(); 
     windowState = open;
-    
-    if (open) {
-        windowServo.pulsewidth_us(2500); 
-        printf("[ACT] Win OPEN\n");
-    } else {
-        windowServo.pulsewidth_us(1400); 
-        printf("[ACT] Win CLOSED\n");
-    }
+    if (open) windowServo.pulsewidth_us(2500); 
+    else windowServo.pulsewidth_us(1400); 
 }
 
 void setAircon(bool on) {
     if (acState == on) return; 
     resetStabilization(); 
     acState = on; 
-    
-    if (on) {
-        Aircon_In1 = 1; Aircon_In2 = 0; 
-        Aircon_En.write(0.15f); 
-        printf("[ACT] AC ON (Low Speed)\n");
-    } else {
-        Aircon_En.write(0.0f); 
-        printf("[ACT] AC OFF\n");
-    }
+    if (on) { Aircon_In1 = 1; Aircon_In2 = 0; Aircon_En.write(0.15f); } 
+    else { Aircon_En.write(0.0f); }
 }
 
 void setRoomLight(bool on) {
     greenLed = on ? 1 : 0;
 }
 
+void unlockSystem() {
+    safe_lcd_clear(); lcd_write_cmd(0x80);
+    lcd_print("ACCESS GRANTED");
+    
+    redLed = 0; alarmTriggered = false; 
+    isPersonHome = true; 
+    potentialIntruder = false; 
+    intruderTimer.stop();
+    intruderTimer.reset();
+    graceTimer.reset(); graceTimer.start();
+    
+    printf(">>> System Unlocked via Keypad/Phone. <<<\n");
+    ThisThread::sleep_for(2s); 
+}
+
+// --- FIXED SECURITY MODE ---
 void enterSecurityMode() {
     printf("\n>>> INTRUDER DETECTED! <<<\n");
     setAircon(false);
@@ -169,40 +157,82 @@ void enterSecurityMode() {
 
     bool accessGranted = false;
     unsigned char inputPass[5];
+    int keyIndex = 0;
 
+    alarmReportTimer.reset();
+    alarmReportTimer.start();
+    
+    // NEW: Timer for non-blocking LED blinking
+    Timer ledBlinkTimer;
+    ledBlinkTimer.start();
+
+    // Loop until unlocked
     while (!accessGranted) {
-        lcd_write_cmd(0xC0); 
-        for (int i = 0; i < 4; i++) {
-            inputPass[i] = get_key_blocking(); 
+        
+        // 1. CHECK BLUETOOTH FOR 'U' (UNLOCK) COMMAND
+        if (btUART.readable()) {
+            char c; btUART.read(&c, 1);
+            if (c == 'U') {
+                unlockSystem();
+                return; // Exit function immediately
+            }
+        }
+
+        // 2. PERIODICALLY UPDATE APP DURING ALARM
+        if (alarmReportTimer.elapsed_time() > 2s) {
+            alarmReportTimer.reset();
+            char buffer[60];
+            int len = sprintf(buffer, "0.0,0.0,0.0,0,%.1f,%d,1,%d\r\n", 
+                  currentDist, isPersonHome, acState);
+            btUART.write(buffer, len); 
+            printf("[ALARM] Status Sent to App\n");
+        }
+
+        // 3. CHECK KEYPAD (Directly)
+        // We removed the 'keypadDataReady' check because it was blocking other columns
+        char key = getkey(); 
+        
+        if (key != 0) {
+            inputPass[keyIndex] = key;
             buzzer = 1; ThisThread::sleep_for(50ms); buzzer = 0;
+            
+            lcd_write_cmd(0xC0 + keyIndex); // Move cursor
             lcd_write_data('*');
+            
+            keyIndex++;
+
+            // If 4 digits entered, check PIN
+            if (keyIndex == 4) {
+                if (inputPass[0] == securityPin[0] && inputPass[1] == securityPin[1] && 
+                    inputPass[2] == securityPin[2] && inputPass[3] == securityPin[3]) {
+                    unlockSystem();
+                    return;
+                } else {
+                    safe_lcd_clear(); lcd_write_cmd(0x80);
+                    lcd_print("WRONG PIN!");
+                    buzzer = 1; ThisThread::sleep_for(200ms); buzzer = 0;
+                    ThisThread::sleep_for(1s);
+                    
+                    // Reset UI
+                    safe_lcd_clear(); lcd_write_cmd(0x80);
+                    lcd_print("ALARM! ENTER PIN");
+                    keyIndex = 0; // Reset index to start over
+                }
+            }
+            // Small debounce delay (OK here because key was pressed)
             ThisThread::sleep_for(200ms); 
         }
-
-        if (inputPass[0] == securityPin[0] && inputPass[1] == securityPin[1] && 
-            inputPass[2] == securityPin[2] && inputPass[3] == securityPin[3]) {
-            accessGranted = true;
-        } else {
-            safe_lcd_clear(); lcd_write_cmd(0x80);
-            lcd_print("WRONG PIN!");
-            buzzer = 1; ThisThread::sleep_for(200ms); buzzer = 0;
-            ThisThread::sleep_for(1s);
-            safe_lcd_clear(); lcd_write_cmd(0x80);
-            lcd_print("ALARM! ENTER PIN");
+        
+        // 4. NON-BLOCKING LED BLINK
+        // Instead of sleep_for(100ms), we check the timer
+        if (ledBlinkTimer.elapsed_time() > 100ms) {
+            redLed = !redLed;
+            ledBlinkTimer.reset();
         }
+        
+        // Tiny sleep to prevent CPU hogging, but fast enough to catch keys
+        ThisThread::sleep_for(20ms); 
     }
-
-    safe_lcd_clear(); lcd_write_cmd(0x80);
-    lcd_print("ACCESS GRANTED");
-    
-    redLed = 0; alarmTriggered = false; 
-    isPersonHome = true; 
-    potentialIntruder = false; 
-    intruderTimer.stop();
-    intruderTimer.reset();
-    graceTimer.reset(); graceTimer.start();
-    printf(">>> System Unlocked. <<<\n");
-    ThisThread::sleep_for(2s); 
 }
 
 int main() {
@@ -237,7 +267,7 @@ int main() {
         ultrasonicTrigger = 0;
         ThisThread::sleep_for(30ms); 
 
-        // --- INTRUDER & AWAY LOGIC ---
+        // ... (Intruder Logic - Same as before) ...
         if (currentDist > 0.1f) {
             bool noiseDetected = (stabilizationTimer.elapsed_time() < 2s);
             bool trigger = false;
@@ -245,14 +275,12 @@ int main() {
             if (!noiseDetected && graceTimer.elapsed_time() > 5s) {
                  if ((lastDist - currentDist) > 100.0f) {
                      trigger = true;
-                     printf(">>> TRIGGER: Sudden Movement! (Delta: %.1f)\n", lastDist - currentDist);
                  }
             }
 
             if (!isPersonHome && currentDist < 100.0f) {
                 if (!noiseDetected) {
                     trigger = true;
-                    printf(">>> TRIGGER: Breach in Away Mode! (Dist: %.1f)\n", currentDist);
                 }
             }
             
@@ -275,13 +303,12 @@ int main() {
                     potentialIntruder = false;
                     intruderTimer.stop();
                     intruderTimer.reset();
-                    printf(">>> Threat Cleared (Ghost).\n");
                 }
             }
-
             if (!potentialIntruder) lastDist = currentDist;
         }
 
+        // ... (Away Logic - Same as before) ...
         if (currentDist > 100.0f) {
             if (awayTimer.elapsed_time() > 3s) isPersonHome = false; 
         } else {
@@ -305,31 +332,24 @@ int main() {
             if(c=='6') setCurtain(false);
 
             if(c=='P') {
-                 printf("[SYS] Updating PIN...\n");
                  safe_lcd_clear(); lcd_write_cmd(0x80); lcd_print("Updating PIN...");
-                 
                  for(int i=0; i<4; i++) {
                      int timeout = 0;
-                     // Increase timeout slightly for reliability
                      while(!btUART.readable() && timeout < 500) { 
                          ThisThread::sleep_for(10ms);
                          timeout++;
                      }
-                     
                      if(btUART.readable()) {
                          char d; btUART.read(&d, 1);
                          securityPin[i] = d;
                      }
                  }
-                 
-                 printf("[SYS] New PIN: %c%c%c%c\n", securityPin[0], securityPin[1], securityPin[2], securityPin[3]);
-                 
                  safe_lcd_clear(); lcd_write_cmd(0x80); lcd_print("PIN Updated!");
                  ThisThread::sleep_for(2s);
             }
         }
 
-        // ... Voice UART Logic ...
+        // ... (Voice Logic - Same as before) ...
         if (voiceUART.readable()) {
             char vc; voiceUART.read(&vc, 1);
             if (vc >= '2' && vc <= '8') {
@@ -345,13 +365,12 @@ int main() {
             }
         }
 
-        // --- SENSOR READ (OPTIMIZED) ---
+        // --- SENSOR READ ---
         if (sensorReadTimer.elapsed_time() > 2s) {
             sensorReadTimer.reset();
             
-            // OPTIMIZATION: Read both in one go to save time
             int t = 0, h = 0;
-            dht11.readTemperatureHumidity(t, h); // Reads once, no internal sleep
+            dht11.readTemperatureHumidity(t, h); 
             float temp = (float)t;
             float humidity = (float)h;
 
@@ -359,8 +378,7 @@ int main() {
             float rainVal = rainSensor.read();
             float dist = currentDist;
             
-            printf("T:%.1f | R:%.2f | D:%.1f | Home:%d\n", temp, rainVal, dist, isPersonHome);
-
+            // Format: Temp, Hum, Rain, IsRaining, Dist, IsHome, IsAlarm, AC_State
             char buffer[60];
             int len = sprintf(buffer, "%.1f,%.1f,%.2f,%d,%.1f,%d,%d,%d\r\n", 
                   temp, humidity, rainVal, isRaining, dist, 
@@ -369,13 +387,12 @@ int main() {
 
             blueLed = 1; ThisThread::sleep_for(100ms); blueLed = 0;
 
-            // ... (Auto Logic) ...
+            // ... (Auto Logic - Same as before) ...
             if (rainVal > 0.6f) { 
                 if (!isRaining) { 
                     isRaining = true; 
                     setWindow(false); 
                     overrideWindow = false; 
-                    printf("[WARN] Rain detected (%.2f). Closing Window.\n", rainVal);
                 }
             } else {
                 isRaining = false;
