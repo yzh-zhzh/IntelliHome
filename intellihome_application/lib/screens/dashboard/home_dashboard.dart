@@ -34,7 +34,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   
   bool isPersonHome = true;
   bool isAlarm = false;
-  bool isAcOn = false;
+  bool isAcOn = false; 
 
   List<FlSpot> tempHistory = [];
   List<FlSpot> humHistory = [];
@@ -158,14 +158,50 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
 
     if (selectedDevice == null) return;
 
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false, 
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: const Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Text("Connecting...", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
     try {
       connection = await BluetoothConnection.toAddress(selectedDevice.address);
       setState(() => isConnected = true);
       connection!.input!.listen(_onDataReceived).onDone(() {
         if (mounted) setState(() => isConnected = false);
       });
+      
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text("Connected to ${selectedDevice.name}"), backgroundColor: Colors.green)
+        );
+      }
+
     } catch (e) {
-      print("Connection Error: $e");
+      if (mounted) {
+        Navigator.pop(context);
+        print("Connection Error: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Connection Failed: $e"), backgroundColor: Colors.red)
+        );
+      }
     }
   }
 
@@ -191,7 +227,6 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
       double t = double.tryParse(values[0]) ?? 0.0;
       double h = double.tryParse(values[1]) ?? 0.0;
       
-      // Update UI state
       setState(() {
         temp = t;
         humidity = h;
@@ -204,7 +239,6 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
 
       if (isSyncing) {
         _syncBuffer.add({'temp': t, 'humidity': h});
-        
         _syncTimeoutTimer?.cancel();
         _syncTimeoutTimer = Timer(const Duration(seconds: 2), _finalizeSync);
       }
@@ -212,6 +246,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   }
 
   void _sendCommand(String cmd) async {
+    print("DEBUG: Sending Bluetooth Command: $cmd");
     if (connection != null && isConnected) {
       connection!.output.add(ascii.encode(cmd));
       await connection!.output.allSent;
@@ -245,7 +280,10 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
         children: [
           _buildDashboard(),
           _buildAnalytics(),
-          const ProfilePage(),
+          ProfilePage(
+            isConnected: isConnected,
+            onSendCommand: _sendCommand
+          ),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -268,7 +306,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Welcome back,", style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
-            Text("$userName!", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2A2D3E))),
+            Text("$userName", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2A2D3E))),
           ],
         ),
         const SizedBox(height: 25),
@@ -296,8 +334,23 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
           mainAxisSpacing: 15, 
           childAspectRatio: 1.5, 
           children: [
-            _buildActionBtn("AC", isAcOn ? "ON" : "OFF", Icons.ac_unit, isAcOn ? Colors.blue : Colors.grey, '1'),
-            _buildActionBtn("AC OFF", "AUTO AC Mode", Icons.power_off, Colors.red.shade300, '2'),
+            
+            _buildActionBtn(
+              isAcOn ? "AC STOP" : "AC START", 
+              "Manual Override", 
+              Icons.power_settings_new, 
+              isAcOn ? Colors.red.shade300 : Colors.green, 
+              isAcOn ? '2' : '1' 
+            ),
+
+            _buildActionBtn(
+              "AC AUTO", 
+              "Sensor Control", 
+              Icons.hdr_auto, 
+              Colors.blue, 
+              '8' 
+            ),
+
             _buildActionBtn("Window", "OPEN", Icons.window, Colors.green, '3'),
             _buildActionBtn("Window", "CLOSE", Icons.sensor_window, Colors.brown, '4'),
             _buildActionBtn("Curtain", "UP", Icons.vertical_align_top, Colors.purple, '5'),
@@ -419,33 +472,60 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
                 BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))
               ],
             ),
-            child: Row(
+            child: Column(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.5),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(icon, size: 32, color: iconColor),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        statusText, 
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: iconColor)
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.5),
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        "$subText • Dist: ${dist.toStringAsFixed(1)} cm",
-                        style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                      child: Icon(icon, size: 32, color: iconColor),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            statusText, 
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: iconColor)
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            "$subText • Dist: ${dist.toStringAsFixed(1)} cm",
+                            style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
+                
+                if (isAlarm) ...[
+                  const SizedBox(height: 15),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        _sendCommand('U'); 
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text("Sending Unlock Command..."))
+                        );
+                      },
+                      icon: const Icon(Icons.lock_open),
+                      label: const Text("UNLOCK SYSTEM"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

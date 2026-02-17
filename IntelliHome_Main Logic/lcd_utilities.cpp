@@ -1,72 +1,69 @@
-
-
 /*
  * File:   lcd utilities.cpp
- *
+ * Optimized for speed to prevent blocking Bluetooth
  */
 #undef __ARM_FP
 
 #include "mbed.h"
-#include "lcd.h"	// Include file is located in the project directory
+#include "lcd.h"
 
-#define DISPLAY_LCD_MASK 0x00000F00 //PORT A1: PA_15 : PA_8, 4-bit mode, using PA_11 : PA_8
+#define DISPLAY_LCD_MASK 0x00000F00 // PORT A: PA_8 to PA_11
 #define DISPLAY_LCD_RESET 0x00000000
 
 PortOut lcdPort(PortA, DISPLAY_LCD_MASK);
-DigitalOut LCD_RS(PA_14);   //  Register Select on LC
-DigitalOut LCD_EN(PA_12);   //  Enable on LCD controller
-DigitalOut LCD_WR(PA_13);   //  Write on LCD controller
+DigitalOut LCD_RS(PA_14);   // Register Select
+DigitalOut LCD_EN(PA_12);   // Enable
+DigitalOut LCD_WR(PA_13);   // Write
 
 void lcd_strobe(void);
 
 //--- Function for writing a command byte to the LCD in 4 bit mode -------------
-
 void lcd_write_cmd(unsigned char cmd)
 {
     unsigned char temp2;
     int tempLCDPort = 0;
 
-    LCD_RS = 0;					// Select LCD for command mode
-    wait_us(40);				// 40us delay for LCD to settle down
+    LCD_RS = 0;             // Select LCD for command mode
+    wait_us(1);             // Small delay
+    
+    // --- Upper Nibble ---
     temp2 = cmd;
-    temp2 = temp2 >> 4;			// Output upper 4 bits, by shifting out lower 4 bits
+    temp2 = temp2 >> 4;     
     temp2 = temp2 & 0x0F;
-                        		// Output to PORTD which is connected to LCD
-    tempLCDPort = (int) temp2;
-    tempLCDPort =  tempLCDPort << 8;
-    tempLCDPort = tempLCDPort & 0x00000F00;
-    lcdPort = tempLCDPort;
-
-
-    wait_us(10000);			// 10ms - Delay at least 1 ms before strobing
-    lcd_strobe();
-    
-	wait_us(10000);			// 10ms - Delay at least 1 ms after strobing
-
-    temp2 = cmd;				// Re-initialise temp2 
-    temp2 = temp2 & 0x0F;		// Mask out upper 4 bits
     
     tempLCDPort = (int) temp2;
     tempLCDPort =  tempLCDPort << 8;
     tempLCDPort = tempLCDPort & 0x00000F00;
     lcdPort = tempLCDPort;
 
-    wait_us(10000);			// 10ms - Delay at least 1 ms before strobing
+    wait_us(5);             // Setup time
     lcd_strobe();
-    wait_us(10000);			// 10ms - Delay at least 1 ms before strobing
+    
+    // --- Lower Nibble ---
+    temp2 = cmd;            
+    temp2 = temp2 & 0x0F;   
+    
+    tempLCDPort = (int) temp2;
+    tempLCDPort =  tempLCDPort << 8;
+    tempLCDPort = tempLCDPort & 0x00000F00;
+    lcdPort = tempLCDPort;
 
+    wait_us(5);             // Setup time
+    lcd_strobe();
+    
+    wait_us(50);            // Execution time (most cmds take < 40us)
 }
 
 //---- Function to write a character data to the LCD ---------------------------
-
 void lcd_write_data(char data)
 {
-  	char temp1;
+    char temp1;
     int tempLCDPort = 0;
 
-    LCD_RS = 1;					// Select LCD for data mode
-    wait_us(40);				// 40us delay for LCD to settle down
+    LCD_RS = 1;             // Select LCD for data mode
+    wait_us(1);             // Small delay
 
+    // --- Upper Nibble ---
     temp1 = data;
     temp1 = temp1 >> 4;
     temp1 = temp1 & 0x0F;
@@ -76,13 +73,10 @@ void lcd_write_data(char data)
     tempLCDPort = tempLCDPort & 0x00000F00;
     lcdPort = tempLCDPort;
 
-	wait_us(10000); 
-   	LCD_RS = 1;
-    wait_us(10000);			//_-_ strobe data in
-
+    wait_us(5);             // Setup time
     lcd_strobe();
-    wait_us(10000);
 
+    // --- Lower Nibble ---
     temp1 = data;
     temp1 = temp1 & 0x0F;
     tempLCDPort = (int) temp1;  
@@ -90,72 +84,45 @@ void lcd_write_data(char data)
     tempLCDPort = tempLCDPort & 0x00000F00;
     lcdPort = tempLCDPort;
 
-    wait_us(10000);
-	LCD_RS = 1;
-    wait_us(10000); 			//_-_ strobe data in
-
-    lcd_strobe();	
-    wait_us(10000);
+    wait_us(5);             // Setup time
+    lcd_strobe();   
+    
+    wait_us(50);            // Execution time
 }
 
-
-//-- Function to generate the strobe signal for command and character----------
-
-void lcd_strobe(void)			// Generate the E pulse
+//-- Function to generate the strobe signal -----------------------------------
+void lcd_strobe(void)
 {
-    LCD_EN = 1;					// E = 0
-    wait_us(10000);			// 10ms delay for LCD_EN to settle
-    LCD_EN = 0;					// E = 1
-    wait_us(10000);			// 10ms delay for LCD_EN to settle
+    LCD_EN = 1;             // E = 1
+    wait_us(2);             // Pulse width > 450ns
+    LCD_EN = 0;             // E = 0
+    wait_us(2);             // Hold time
 }
 
-
-//---- Function to initialise LCD module ----------------------------------------
+//---- Function to initialise LCD module --------------------------------------
 void lcd_init(void)
 {
-    lcdPort = DISPLAY_LCD_RESET;				// lcd port (portA, PA8 - PA15) is connected to LCD data pin
+    lcdPort = DISPLAY_LCD_RESET;
     LCD_EN = 0;
-    LCD_RS = 0;					// Select LCD for command mode
-    LCD_WR = 0;					// Select LCD for write mode
+    LCD_RS = 0;
+    LCD_WR = 0;
    
-    // Delay a total of 1 s for LCD module to
-	// finish its own internal initialisation
+    thread_sleep_for(100);  // Power-on delay (100ms is plenty)
 
-    thread_sleep_for(1000);
-
-    /* The data sheets warn that the LCD module may fail to initialise properly when
-       power is first applied. This is particularly likely if the Vdd
-       supply does not rise to its correct operating voltage quickly enough.
-
-       It is recommended that after power is applied, a command sequence of
-       3 bytes of 30h be sent to the module. This will ensure that the module is in
-       8-bit mode and is properly initialised. Following this, the LCD module can be
-       switched to 4-bit mode.
-    */
-
+    // Initialization Sequence
     lcd_write_cmd(0x33);
     lcd_write_cmd(0x32);
       
-    lcd_write_cmd(0x28);		// 001010xx � Function Set instruction
-    							// DL=0 :4-bit interface,N=1 :2 lines,F=0 :5x7 dots
-   
-    lcd_write_cmd(0x0E);		// 00001110 � Display On/Off Control instruction
-    							// D=1 :Display on,C=1 :Cursor on,B=0 :Cursor Blink on
-   
-    lcd_write_cmd(0x06);		// 00000110 � Entry Mode Set instruction
-    							// I/D=1 :Increment Cursor position
-   								// S=0 : No display shift
-   
-    lcd_write_cmd(0x01);		// 00000001 Clear Display instruction
+    lcd_write_cmd(0x28);    // 4-bit, 2 lines, 5x7
+    lcd_write_cmd(0x0E);    // Display ON, Cursor ON
+    lcd_write_cmd(0x06);    // Increment Cursor
+    lcd_write_cmd(0x01);    // Clear Display
  
-    thread_sleep_for(20);			// 20 ms delay
-
+    thread_sleep_for(2);    // Clear command needs ~2ms
 }
 
 void lcd_Clear(void)
 {
-    lcd_write_cmd(0x01);		// 00000001 Clear Display instruction
- 
-    thread_sleep_for(20);			// 20 ms delay
-
+    lcd_write_cmd(0x01);    // Clear Display
+    thread_sleep_for(2);    // Clear command needs ~2ms
 }

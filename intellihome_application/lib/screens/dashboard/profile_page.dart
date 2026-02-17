@@ -4,7 +4,14 @@ import 'package:intellihome_application/screens/auth/login_page.dart';
 import 'package:intellihome_application/services/auth_service.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({super.key});
+  final bool isConnected;
+  final Function(String)? onSendCommand;
+
+  const ProfilePage({
+    super.key, 
+    this.isConnected = false, 
+    this.onSendCommand
+  });
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -103,6 +110,71 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _showChangePinDialog() {
+    if (!widget.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Connect to Device first!")));
+      return;
+    }
+
+    TextEditingController pinCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent closing while sending
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Change Device PIN"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("Enter new 4-digit PIN for the alarm system."),
+              const SizedBox(height: 10),
+              TextField(
+                controller: pinCtrl,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                decoration: const InputDecoration(
+                  hintText: "e.g. 1234",
+                  border: OutlineInputBorder()
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                String newPin = pinCtrl.text.trim();
+                if (newPin.length == 4 && int.tryParse(newPin) != null) {
+                  
+                  widget.onSendCommand?.call("P");
+                  
+                  await Future.delayed(const Duration(milliseconds: 150));
+                  
+                  for (int i = 0; i < 4; i++) {
+                    widget.onSendCommand?.call(newPin[i]);
+                    await Future.delayed(const Duration(milliseconds: 150));
+                  }
+
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sent new PIN: $newPin")));
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("PIN must be 4 digits")));
+                }
+              },
+              child: const Text("Update"),
+            )
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
@@ -162,6 +234,12 @@ class _ProfilePageState extends State<ProfilePage> {
             
             const SizedBox(height: 20),
 
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text("App Settings", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey))
+            ),
+            const SizedBox(height: 10),
+
             Container(
               decoration: BoxDecoration(
                 color: Colors.white,
@@ -177,6 +255,29 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
             ),
             
+            const SizedBox(height: 20),
+
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text("Device Settings", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey))
+            ),
+            const SizedBox(height: 10),
+
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade400) 
+              ),
+              child: ListTile(
+                title: const Text("Change Alarm PIN"),
+                subtitle: const Text("Update security code on device"),
+                leading: const Icon(Icons.lock_reset, color: Colors.orange),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: _showChangePinDialog,
+              ),
+            ),
+
             const SizedBox(height: 30),
 
             if (_isEditing)
