@@ -562,7 +562,13 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
         children: [
           const Icon(Icons.info_outline, color: Colors.white),
           const SizedBox(width: 10),
-          Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Expanded( 
+            child: Text(
+              msg, 
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
