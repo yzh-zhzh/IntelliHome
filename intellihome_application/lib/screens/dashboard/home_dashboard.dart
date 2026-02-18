@@ -153,12 +153,15 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
 
   Future<void> _connectToBluetooth() async {
     final BluetoothDevice? selectedDevice = await Navigator.of(context).push(
-      MaterialPageRoute(builder: (context) => const SelectBondedDevicePage(checkAvailability: false)),
+      MaterialPageRoute(
+        builder: (context) => const SelectBondedDevicePage(checkAvailability: false),
+      ),
     );
 
     if (selectedDevice == null) return;
 
     if (!mounted) return;
+    
     showDialog(
       context: context,
       barrierDismissible: false, 
@@ -183,23 +186,34 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     try {
       connection = await BluetoothConnection.toAddress(selectedDevice.address);
       setState(() => isConnected = true);
+      
       connection!.input!.listen(_onDataReceived).onDone(() {
         if (mounted) setState(() => isConnected = false);
       });
       
       if (mounted) {
-        Navigator.pop(context);
+        Navigator.pop(context); 
         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(content: Text("Connected to ${selectedDevice.name}"), backgroundColor: Colors.green)
+           SnackBar(
+             content: Text("Connected to ${selectedDevice.name}"), 
+             backgroundColor: Colors.green
+           )
         );
       }
 
     } catch (e) {
       if (mounted) {
-        Navigator.pop(context);
-        print("Connection Error: $e");
+        Navigator.pop(context); 
+        
+        print("Bluetooth Connection Error: $e");
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Connection Failed: $e"), backgroundColor: Colors.red)
+          SnackBar(
+            content: const Text("Connection Failed: Device unreachable or busy."), 
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+            action: SnackBarAction(label: "Retry", textColor: Colors.white, onPressed: _connectToBluetooth),
+          )
         );
       }
     }
@@ -562,7 +576,13 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
         children: [
           const Icon(Icons.info_outline, color: Colors.white),
           const SizedBox(width: 10),
-          Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          Expanded( 
+            child: Text(
+              msg, 
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );
