@@ -24,8 +24,6 @@ AnalogIn rainSensor(PA_5);
 DigitalOut ultrasonicTrigger(PA_1); 
 InterruptIn ultrasonicEcho(PA_6);   
 
-DigitalOut buzzer(PC_0);      
-
 DigitalOut redLed(PB_1);
 DigitalOut blueLed(PB_2); 
 DigitalOut greenLed(PC_3);  
@@ -159,8 +157,6 @@ void enterSecurityMode() {
     safe_lcd_clear(); lcd_write_cmd(0x80);
     lcd_print("ALARM! ENTER PIN");
     
-    buzzer = 1; ThisThread::sleep_for(500ms); buzzer = 0;
-
     bool accessGranted = false;
     unsigned char inputPass[5];
     int keyIndex = 0;
@@ -188,7 +184,6 @@ void enterSecurityMode() {
         char key = getkey(); 
         if (key != 0) {
             inputPass[keyIndex] = key;
-            buzzer = 1; ThisThread::sleep_for(50ms); buzzer = 0;
             
             lcd_write_cmd(0xC0 + keyIndex); 
             lcd_write_data('*');
@@ -203,7 +198,6 @@ void enterSecurityMode() {
                 } else {
                     safe_lcd_clear(); lcd_write_cmd(0x80);
                     lcd_print("WRONG PIN!");
-                    buzzer = 1; ThisThread::sleep_for(200ms); buzzer = 0;
                     ThisThread::sleep_for(1s);
                     safe_lcd_clear(); lcd_write_cmd(0x80);
                     lcd_print("ALARM! ENTER PIN");
