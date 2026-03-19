@@ -112,7 +112,9 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   void _fetchChartData() async {
     if (_auth.currentUserId == null) return;
     setState(() => isLoadingCharts = true);
+    
     Map<String, List<FlSpot>> data = await _sensorService.fetch24hData(_auth.currentUserId!);
+    
     if (mounted) {
       setState(() {
         tempHistory = data['temp']!;
@@ -134,7 +136,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
         userName = userDetails['name'] ?? "User";
       });
     } catch (e) {
-      print("Error fetching name: $e");
+      debugPrint("Error fetching name: $e");
     }
   }
 
@@ -204,8 +206,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     } catch (e) {
       if (mounted) {
         Navigator.pop(context); 
-        
-        print("Bluetooth Connection Error: $e");
+        debugPrint("Bluetooth Connection Error: $e");
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -260,7 +261,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
   }
 
   void _sendCommand(String cmd) async {
-    print("DEBUG: Sending Bluetooth Command: $cmd");
+    debugPrint("DEBUG: Sending Bluetooth Command: $cmd");
     if (connection != null && isConnected) {
       connection!.output.add(ascii.encode(cmd));
       await connection!.output.allSent;
@@ -320,7 +321,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text("Welcome back,", style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
-            Text("$userName", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2A2D3E))),
+            Text(userName, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF2A2D3E))),
           ],
         ),
         const SizedBox(height: 25),
@@ -346,9 +347,8 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
           crossAxisCount: 2, 
           crossAxisSpacing: 15, 
           mainAxisSpacing: 15, 
-          childAspectRatio: 1.3,
+          childAspectRatio: 1.3, 
           children: [
-            
             _buildActionBtn(
               isAcOn ? "AC STOP" : "AC START", 
               "Manual Override", 
@@ -356,15 +356,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
               isAcOn ? Colors.red.shade300 : Colors.green, 
               isAcOn ? '2' : '1' 
             ),
-
-            _buildActionBtn(
-              "AC AUTO", 
-              "Sensor Control", 
-              Icons.hdr_auto, 
-              Colors.blue, 
-              '8' 
-            ),
-
+            _buildActionBtn("AC AUTO", "Sensor Control", Icons.hdr_auto, Colors.blue, '8'),
             _buildActionBtn("Window", "OPEN", Icons.window, Colors.green, '3'),
             _buildActionBtn("Window", "CLOSE", Icons.sensor_window, Colors.brown, '4'),
             _buildActionBtn("Curtain", "UP", Icons.vertical_align_top, Colors.purple, '5'),
@@ -380,7 +372,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
       return const Center(child: CircularProgressIndicator());
     }
     
-    if (tempHistory.isEmpty) {
+    if (tempHistory.isEmpty && humHistory.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -405,7 +397,14 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
             child: LineChart(
               LineChartData(
                 minY: 20, maxY: 40,
-                lineBarsData: [LineChartBarData(spots: tempHistory, isCurved: true, color: Colors.orange, dotData: const FlDotData(show: true))],
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: tempHistory,
+                    isCurved: true, 
+                    color: Colors.orange, 
+                    dotData: const FlDotData(show: true)
+                  )
+                ],
                 titlesData: const FlTitlesData(
                   leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
                   bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -425,7 +424,14 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
             child: LineChart(
               LineChartData(
                 minY: 0, maxY: 100,
-                lineBarsData: [LineChartBarData(spots: humHistory, isCurved: true, color: Colors.blue, dotData: const FlDotData(show: true))],
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: humHistory,
+                    isCurved: true, 
+                    color: Colors.blue, 
+                    dotData: const FlDotData(show: true)
+                  )
+                ],
                 titlesData: const FlTitlesData(
                   leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40)),
                   bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
