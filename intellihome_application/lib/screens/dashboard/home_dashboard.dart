@@ -346,7 +346,7 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
           crossAxisCount: 2, 
           crossAxisSpacing: 15, 
           mainAxisSpacing: 15, 
-          childAspectRatio: 1.5, 
+          childAspectRatio: 1.3,
           children: [
             
             _buildActionBtn(
@@ -553,13 +553,17 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 15),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 30, color: color),
-            const SizedBox(height: 10),
-            Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-            Text(title, style: const TextStyle(color: Colors.grey)),
+            Icon(icon, size: 24, color: color), 
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            ),
+            Text(title, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           ],
         ),
       ),
@@ -592,14 +596,25 @@ class _HomeDashboardState extends State<HomeDashboard> with SingleTickerProvider
     return GestureDetector(
       onTap: () => _sendCommand(cmd),
       child: Container(
-        padding: const EdgeInsets.all(15),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)]),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), 
+        decoration: BoxDecoration(
+          color: Colors.white, 
+          borderRadius: BorderRadius.circular(15), 
+          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 5)]
+        ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center, 
           children: [
-            Icon(icon, color: color, size: 30),
-            const SizedBox(height: 10),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            Text(subtitle, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Icon(icon, color: color, size: 28),
+            const SizedBox(height: 8),
+            FittedBox( 
+              fit: BoxFit.scaleDown,
+              child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            FittedBox( 
+              fit: BoxFit.scaleDown,
+              child: Text(subtitle, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            ),
           ],
         ),
       ),
