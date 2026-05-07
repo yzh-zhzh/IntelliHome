@@ -2,7 +2,7 @@
 
 A comprehensive IoT-based smart home automation and security system built using the STM32 Nucleo-F103RB microcontroller. This system integrates environmental monitoring, automated control of windows and curtains, intruder detection, and remote control via a Flutter mobile application over Bluetooth.
 
-## 📌 Project Overview
+## Project Overview
 
 This project simulates a smart home environment where various sensors monitor real-time conditions (temperature, light, rain, and motion) to automate household appliances. The system features a security mode with password protection and offers manual overrides through a physical keypad or a mobile app.
 
@@ -21,7 +21,7 @@ This project simulates a smart home environment where various sensors monitor re
     * **Mobile App:** Flutter-based app connects via Bluetooth (HC-05/06) to view sensor data and control appliances.
     * **Voice Control:** Supports voice commands via the mobile interface.
 
-## 🛠️ Hardware Components
+## Hardware Components
 
 * **Microcontroller:** STM32 Nucleo-F103RB
 * **Sensors:**
@@ -40,7 +40,7 @@ This project simulates a smart home environment where various sensors monitor re
     * HC-05/HC-06 Bluetooth Module
 	* Voice Recognition Module
 
-## 🔌 Pin Configuration
+## Pin Configuration
 
 | Component | Pin | Type |
 | :--- | :--- | :--- |
@@ -59,7 +59,7 @@ This project simulates a smart home environment where various sensors monitor re
 | **LCD Data** | PA_8 - PA_11 | Port Out |
 | **LCD Control** | PA_12 (EN), PA_13 (WR), PA_14 (RS) | Digital Out |
 
-## 💻 Software Architecture
+## Software Architecture
 
 ### Firmware (C++ / Mbed OS)
 The STM32 firmware is written in C++ using the Mbed OS API. It utilizes a super-loop architecture with timer-based polling for sensors and interrupts for critical events.
@@ -73,11 +73,11 @@ The companion app is built with Flutter and communicates via Bluetooth Classic (
 * **Data Format:** Receives CSV string `Temp,Light,Rain,IsRaining` (e.g., `28.5,0.80,0.10,0`).
 * **Commands:** Sends single-character commands to trigger actions (e.g., '1' for AC ON, '3' for Window Open).
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 * **Hardware:** STM32 Nucleo board, sensors, and connecting wires.
-* **Software:** Keil Studio Cloud, Mbed Studio, or STM32CubeIDE.
+* **Software:** Mbed Studio
 * **Mobile:** Android device with Bluetooth support.
 
 ### Installation
@@ -92,12 +92,12 @@ The companion app is built with Flutter and communicates via Bluetooth Classic (
     * Navigate to the `intellihome_application` directory.
     * Run `flutter run` on your connected Android device.
 
-## 🎮 How to Use
+## How to Use
 
 1.  **Auto Mode:** The system starts in Auto Mode. It will react to light and temperature changes automatically.
 2.  **Manual Override:**
     * Press keys on the Keypad or use the Mobile App to force appliances on/off.
-    * [cite_start]**Note:** If it is raining, the Window Open command will be blocked for safety[cite: 2].
+    * **Note:** If it is raining, the Window Open command will be blocked for safety.
 3.  **Security Mode:**
     * If "Away" (no motion for set time), the system arms itself.
     * If movement is detected, the alarm triggers.
